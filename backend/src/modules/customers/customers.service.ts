@@ -50,6 +50,10 @@ export class CustomersService {
                 expirationDate: dto.expirationDate,
                 cardCode: dto.cardCode,
             },
+            {
+                firstName: customer.firstName,
+                lastName: customer.lastName,
+            }
         );
 
         // 2. Save in MongoDB

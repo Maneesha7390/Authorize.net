@@ -65,7 +65,8 @@ export class AuthorizeNetService {
     // CIM: Create Payment Profile
     async createPaymentProfile(
         customerProfileId: string,
-        cardData: { cardNumber: string; expirationDate: string; cardCode: string }
+        cardData: { cardNumber: string; expirationDate: string; cardCode: string },
+        billTo?: { firstName: string; lastName: string }
     ): Promise<string> {
         const creditCard = new APIContracts.CreditCardType();
         creditCard.setCardNumber(cardData.cardNumber);
@@ -78,6 +79,14 @@ export class AuthorizeNetService {
         const customerPaymentProfile = new APIContracts.CustomerPaymentProfileType();
         customerPaymentProfile.setCustomerType(APIContracts.CustomerTypeEnum.INDIVIDUAL);
         customerPaymentProfile.setPayment(paymentType);
+
+        // Add billing information if provided (required for subscriptions)
+        if (billTo) {
+            const billToAddress = new APIContracts.CustomerAddressType();
+            billToAddress.setFirstName(billTo.firstName);
+            billToAddress.setLastName(billTo.lastName);
+            customerPaymentProfile.setBillTo(billToAddress);
+        }
 
         const createRequest = new APIContracts.CreateCustomerPaymentProfileRequest();
         createRequest.setMerchantAuthentication(this.merchantAuthentication);
@@ -230,6 +239,8 @@ export class AuthorizeNetService {
         const response = await this.execute(ctrl);
         return response.subscriptionId;
     }
+
+
 
     // Subscriptions (ARB): Cancel Subscription
     async cancelSubscription(subscriptionId: string): Promise<any> {

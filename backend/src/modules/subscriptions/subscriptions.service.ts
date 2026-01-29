@@ -25,29 +25,35 @@ export class SubscriptionsService {
         }
 
         // 1. Create ARB Subscription in Authorize.Net
-        const authNetSubscriptionId = await this.authNetService.createSubscription(
-            customer.authorizeNetCustomerId,
-            paymentProfile.authorizeNetPaymentProfileId,
-            {
-                name: dto.planName,
-                amount: dto.amount,
-                intervalLength: dto.intervalLength,
-                intervalUnit: dto.intervalUnit,
-                startDate: dto.startDate || new Date().toISOString().split('T')[0],
-                totalOccurrences: dto.totalOccurrences || 9999,
-                trialAmount: dto.trialAmount,
-                trialOccurrences: dto.trialOccurrences,
-            },
-        );
+        try {
+            const authNetSubscriptionId = await this.authNetService.createSubscription(
+                customer.authorizeNetCustomerId,
+                paymentProfile.authorizeNetPaymentProfileId,
+                {
+                    name: dto.planName,
+                    amount: dto.amount,
+                    intervalLength: dto.intervalLength,
+                    intervalUnit: dto.intervalUnit,
+                    startDate: dto.startDate || new Date().toISOString().split('T')[0],
+                    totalOccurrences: dto.totalOccurrences || 9999,
+                    trialAmount: dto.trialAmount,
+                    trialOccurrences: dto.trialOccurrences,
+                },
+            );
 
-        // 2. Save in MongoDB
-        const subscription = new this.subscriptionModel({
-            ...dto,
-            authorizeNetSubscriptionId: authNetSubscriptionId,
-            status: SubscriptionStatus.ACTIVE,
-        });
+            // 2. Save in MongoDB
+            const subscription = new this.subscriptionModel({
+                ...dto,
+                authorizeNetSubscriptionId: authNetSubscriptionId,
+                status: SubscriptionStatus.ACTIVE,
+            });
 
-        return subscription.save();
+            return subscription.save();
+        } catch (error) {
+            throw new NotFoundException(`Failed to create subscription: ${error.message}`);
+        }
+
+
     }
 
     async cancel(id: string): Promise<Subscription> {

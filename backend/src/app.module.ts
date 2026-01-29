@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { CustomersModule } from './modules/customers/customers.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
@@ -27,9 +25,6 @@ import { AuthModule } from './modules/auth/auth.module';
     SubscriptionsModule,
     WebhooksModule,
   ],
-
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule { }
 
