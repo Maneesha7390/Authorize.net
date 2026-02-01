@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Put, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Put, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SubscriptionsService } from './subscriptions.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
@@ -28,9 +28,9 @@ export class SubscriptionsController {
     }
 
     @Put(':id/cancel')
-    @Roles(UserRole.ADMIN)
-    @ApiOperation({ summary: 'Cancel an active subscription (Admin only)' })
-    cancel(@Param('id') id: string) {
-        return this.subscriptionsService.cancel(id);
+    @Roles(UserRole.ADMIN, UserRole.USER)
+    @ApiOperation({ summary: 'Cancel an active subscription' })
+    cancel(@Param('id') id: string, @Request() req) {
+        return this.subscriptionsService.cancel(id, req.user);
     }
 }

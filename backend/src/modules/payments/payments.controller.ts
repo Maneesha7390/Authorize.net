@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Put, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Param, Put, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { ChargeProfileDto } from './dto/charge-profile.dto';
@@ -29,16 +29,16 @@ export class PaymentsController {
     }
 
     @Post('refund')
-    @Roles(UserRole.ADMIN)
-    @ApiOperation({ summary: 'Refund a transaction (Admin only)' })
-    refund(@Body() dto: RefundDto) {
-        return this.paymentsService.refund(dto);
+    @Roles(UserRole.ADMIN, UserRole.USER)
+    @ApiOperation({ summary: 'Refund a transaction' })
+    refund(@Body() dto: RefundDto, @Request() req) {
+        return this.paymentsService.refund(dto, req.user);
     }
 
     @Put(':id/void')
-    @Roles(UserRole.ADMIN)
-    @ApiOperation({ summary: 'Void a transaction (Admin only)' })
-    void(@Param('id') id: string) {
-        return this.paymentsService.void(id);
+    @Roles(UserRole.ADMIN, UserRole.USER)
+    @ApiOperation({ summary: 'Void a transaction' })
+    void(@Param('id') id: string, @Request() req) {
+        return this.paymentsService.void(id, req.user);
     }
 }

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Transaction, TransactionStatus, TransactionType } from '../../schemas/transaction.schema';
@@ -85,9 +85,17 @@ export class PaymentsService {
         return captureTx.save();
     }
 
-    async refund(dto: RefundDto): Promise<Refund> {
+    async refund(dto: RefundDto, user: any): Promise<Refund> {
         const tx = await this.transactionModel.findById(dto.transactionId);
         if (!tx) throw new NotFoundException('Transaction not found');
+
+        // Ownership check
+        if (user.role !== 'admin') {
+            const customer = await this.customerModel.findById(tx.customerId);
+            if (!customer || customer.email !== user.email) {
+                throw new ForbiddenException('You do not have permission to refund this transaction');
+            }
+        }
 
         const paymentProfile = await this.paymentProfileModel.findOne({ customerId: tx.customerId, isDefault: true }); // Simplified for demo
         if (!paymentProfile) throw new BadRequestException('Payment profile not found for refund');
@@ -115,9 +123,17 @@ export class PaymentsService {
         return refund.save();
     }
 
-    async void(transactionId: string): Promise<Transaction> {
+    async void(transactionId: string, user: any): Promise<Transaction> {
         const tx = await this.transactionModel.findById(transactionId);
         if (!tx) throw new NotFoundException('Transaction not found');
+
+        // Ownership check
+        if (user.role !== 'admin') {
+            const customer = await this.customerModel.findById(tx.customerId);
+            if (!customer || customer.email !== user.email) {
+                throw new ForbiddenException('You do not have permission to void this transaction');
+            }
+        }
 
         const response = await this.authNetService.voidTransaction(tx.authorizeNetTransactionId);
 

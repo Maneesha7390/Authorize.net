@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Subscription, SubscriptionStatus } from '../../schemas/subscription.schema';
@@ -56,9 +56,17 @@ export class SubscriptionsService {
 
     }
 
-    async cancel(id: string): Promise<Subscription> {
+    async cancel(id: string, user: any): Promise<Subscription> {
         const subscription = await this.subscriptionModel.findById(id);
         if (!subscription) throw new NotFoundException('Subscription not found');
+
+        // Ownership check
+        if (user.role !== 'admin') {
+            const customer = await this.customerModel.findById(subscription.customerId);
+            if (!customer || customer.email !== user.email) {
+                throw new ForbiddenException('You do not have permission to cancel this subscription');
+            }
+        }
 
         await this.authNetService.cancelSubscription(subscription.authorizeNetSubscriptionId);
 
