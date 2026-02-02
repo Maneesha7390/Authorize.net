@@ -64,25 +64,44 @@ export class PaymentsService {
         }
     }
 
-    async capture(transactionId: string, amount: number): Promise<Transaction> {
-        const originalTx = await this.transactionModel.findById(transactionId);
-        if (!originalTx) throw new NotFoundException('Transaction not found');
+    async capture(transactionId: string, amount?: number): Promise<Transaction> {
+        try {
+            if (!transactionId || transactionId.length !== 24) {
+                throw new BadRequestException('Invalid Transaction ID format. Please provide the 24-character MongoDB _id.');
+            }
 
-        const response = await this.authNetService.captureTransaction(
-            originalTx.authorizeNetTransactionId,
-            amount,
-        );
+            const originalTx = await this.transactionModel.findById(transactionId);
+            if (!originalTx) throw new NotFoundException('Transaction not found');
 
-        const captureTx = new this.transactionModel({
-            customerId: originalTx.customerId,
-            authorizeNetTransactionId: response.transId,
-            amount: amount,
-            type: TransactionType.CAPTURE,
-            status: TransactionStatus.SUCCESS,
-            rawResponse: response,
-        });
+            // Use original amount if none provided
+            const finalAmount = amount || originalTx.amount;
 
-        return captureTx.save();
+            if (finalAmount <= 0) {
+                throw new BadRequestException('Amount must be a positive number');
+            }
+
+            const response = await this.authNetService.captureTransaction(
+                originalTx.authorizeNetTransactionId,
+                finalAmount,
+            );
+
+            // Create a new record for the capture event
+            const captureTx = new this.transactionModel({
+                customerId: originalTx.customerId,
+                authorizeNetTransactionId: response.transId,
+                amount: finalAmount,
+                type: TransactionType.CAPTURE,
+                status: TransactionStatus.SUCCESS,
+                rawResponse: response,
+            });
+
+            return captureTx.save();
+        } catch (error) {
+            if (error instanceof NotFoundException || error instanceof BadRequestException) {
+                throw error;
+            }
+            throw new BadRequestException(`Capture failed: ${error.message}`);
+        }
     }
 
     async refund(dto: RefundDto, user: any): Promise<Refund> {

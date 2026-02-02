@@ -1,8 +1,9 @@
 import { Controller, Post, Body, Param, Put, UseGuards, Request } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { ChargeProfileDto } from './dto/charge-profile.dto';
 import { RefundDto } from './dto/refund.dto';
+import { CaptureDto } from './dto/capture.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -24,8 +25,9 @@ export class PaymentsController {
 
     @Post(':id/capture')
     @ApiOperation({ summary: 'Capture an authorized transaction' })
-    capture(@Param('id') id: string, @Body('amount') amount: number) {
-        return this.paymentsService.capture(id, amount);
+    @ApiBody({ type: CaptureDto, required: false })
+    capture(@Param('id') id: string, @Body() dto?: CaptureDto) {
+        return this.paymentsService.capture(id, dto?.amount);
     }
 
     @Post('refund')
