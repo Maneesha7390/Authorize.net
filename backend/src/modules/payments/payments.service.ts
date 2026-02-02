@@ -167,4 +167,13 @@ export class PaymentsService {
         tx.rawResponse = JSON.parse(JSON.stringify(response));
         return tx.save();
     }
+
+    async findAllByUser(userId: string): Promise<Transaction[]> {
+        const customers = await this.customerModel.find({ userId }).select('_id');
+        const customerIds = customers.map(c => c._id);
+
+        return this.transactionModel.find({
+            customerId: { $in: customerIds }
+        } as any).sort({ createdAt: -1 }).exec();
+    }
 }

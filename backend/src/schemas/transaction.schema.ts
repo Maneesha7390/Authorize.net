@@ -20,6 +20,9 @@ export class Transaction extends Document {
     @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Customer' })
     customerId: string;
 
+    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Subscription' })
+    subscriptionId: string;
+
     @Prop()
     authorizeNetTransactionId: string;
 

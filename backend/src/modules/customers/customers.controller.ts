@@ -32,6 +32,13 @@ export class CustomersController {
         return this.customersService.addPaymentProfile(id, dto);
     }
 
+    @Get(':id/payment-profiles')
+    @ApiOperation({ summary: 'Get all payment profiles for a customer' })
+    @ApiResponse({ status: 200, description: 'List of payment profiles' })
+    getPaymentProfiles(@Param('id') id: string) {
+        return this.customersService.findPaymentProfiles(id);
+    }
+
     @Get()
     @ApiOperation({ summary: 'List all customers' })
     findAll() {

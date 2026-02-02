@@ -14,6 +14,12 @@ export class Subscription extends Document {
     @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Customer', required: true })
     customerId: string;
 
+    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Plan', required: true })
+    planId: string;
+
+    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'PaymentProfile', required: true })
+    paymentProfileId: string;
+
     @Prop({ required: true })
     authorizeNetSubscriptionId: string; // ARB Subscription ID
 

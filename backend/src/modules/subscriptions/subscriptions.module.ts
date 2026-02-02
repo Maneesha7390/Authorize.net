@@ -5,6 +5,8 @@ import { SubscriptionsService } from './subscriptions.service';
 import { Subscription, SubscriptionSchema } from '../../schemas/subscription.schema';
 import { Customer, CustomerSchema } from '../../schemas/customer.schema';
 import { PaymentProfile, PaymentProfileSchema } from '../../schemas/payment-profile.schema';
+import { Plan, PlanSchema } from '../../schemas/plan.schema';
+import { Transaction, TransactionSchema } from '../../schemas/transaction.schema';
 import { AuthorizeNetService } from '../../common/authorize-net.service';
 
 @Module({
@@ -13,6 +15,8 @@ import { AuthorizeNetService } from '../../common/authorize-net.service';
             { name: Subscription.name, schema: SubscriptionSchema },
             { name: Customer.name, schema: CustomerSchema },
             { name: PaymentProfile.name, schema: PaymentProfileSchema },
+            { name: Plan.name, schema: PlanSchema },
+            { name: Transaction.name, schema: TransactionSchema },
         ]),
     ],
     controllers: [SubscriptionsController],

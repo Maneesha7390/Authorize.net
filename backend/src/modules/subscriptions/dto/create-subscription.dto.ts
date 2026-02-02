@@ -12,26 +12,32 @@ export class CreateSubscriptionDto {
     @IsNotEmpty()
     paymentProfileId: string;
 
-    @ApiProperty({ example: 'Premium Plan' })
+    @ApiProperty({ description: 'ID of the pre-defined plan' })
     @IsString()
     @IsNotEmpty()
-    planName: string;
+    planId: string;
 
-    @ApiProperty({ example: 49.99 })
+    @ApiProperty({ example: 'Premium Plan', required: false })
+    @IsString()
+    @IsOptional()
+    planName?: string;
+
+    @ApiProperty({ example: 49.99, required: false })
     @IsNumber()
     @Min(0.01)
-    amount: number;
+    @IsOptional()
+    amount?: number;
 
-    @ApiProperty({ example: 1 })
+    @ApiProperty({ example: 1, required: false })
     @IsNumber()
-    @IsNotEmpty()
-    intervalLength: number;
+    @IsOptional()
+    intervalLength?: number;
 
-    @ApiProperty({ example: 'months', enum: ['days', 'months'] })
+    @ApiProperty({ example: 'months', enum: ['days', 'months'], required: false })
     @IsString()
-    @IsNotEmpty()
+    @IsOptional()
     @IsEnum(['days', 'months'])
-    intervalUnit: string;
+    intervalUnit?: string;
 
     @ApiProperty({ example: '2025-02-01', required: false })
     @IsString()
@@ -52,4 +58,17 @@ export class CreateSubscriptionDto {
     @IsNumber()
     @IsOptional()
     trialOccurrences?: number;
+}
+
+export class UpgradeSubscriptionDto {
+    @ApiProperty()
+    @IsString()
+    @IsNotEmpty()
+    newPlanId: string;
+
+    @ApiProperty({ description: 'Optional override for the new amount', required: false })
+    @IsNumber()
+    @IsOptional()
+    @Min(0.01)
+    newAmount?: number;
 }

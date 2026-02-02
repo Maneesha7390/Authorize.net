@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Put, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Body, Param, Put, UseGuards, Request, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { ChargeProfileDto } from './dto/charge-profile.dto';
@@ -16,6 +16,12 @@ import { UserRole } from '../../schemas/user.schema';
 export class PaymentsController {
 
     constructor(private readonly paymentsService: PaymentsService) { }
+
+    @Get('user')
+    @ApiOperation({ summary: 'Get current user\'s payment history' })
+    getMyPayments(@Request() req) {
+        return this.paymentsService.findAllByUser(req.user.userId);
+    }
 
     @Post('charge')
     @ApiOperation({ summary: 'Charge a saved customer profile' })

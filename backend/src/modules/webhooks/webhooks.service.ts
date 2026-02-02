@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { WebhookEvent } from '../../schemas/webhook-event.schema';
-import { Transaction, TransactionStatus } from '../../schemas/transaction.schema';
+import { Transaction, TransactionStatus, TransactionType } from '../../schemas/transaction.schema';
 import { Subscription, SubscriptionStatus } from '../../schemas/subscription.schema';
 
 @Injectable()
@@ -62,11 +62,31 @@ export class WebhooksService {
 
     private async handlePaymentCreated(payload: any) {
         const transId = payload.payload.id;
-        const tx = await this.transactionModel.findOne({ authorizeNetTransactionId: transId });
-        if (tx) {
+        const amount = payload.payload.authAmount;
+        const subscriptionId = payload.payload.subscriptionId; // Authorize.Net provides this in ARB webhooks
+
+        // Try to find an existing transaction (e.g., created during manual upgrade)
+        let tx = await this.transactionModel.findOne({ authorizeNetTransactionId: transId });
+
+        if (!tx) {
+            // Find the subscription to link it back to the customer
+            const sub = await this.subscriptionModel.findOne({ authorizeNetSubscriptionId: subscriptionId });
+
+            tx = new this.transactionModel({
+                authorizeNetTransactionId: transId,
+                amount: amount,
+                type: TransactionType.CHARGE,
+                status: TransactionStatus.SUCCESS,
+                customerId: sub ? sub.customerId : null,
+                subscriptionId: sub ? sub._id : null,
+                rawResponse: payload
+            });
+        } else {
             tx.status = TransactionStatus.SUCCESS;
-            await tx.save();
         }
+
+        await tx.save();
+        this.logger.log(`Processed payment for transaction ${transId} (Subscription: ${subscriptionId})`);
     }
 
     private async handleSubscriptionCancelled(payload: any) {

@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Body, Param, Put, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SubscriptionsService } from './subscriptions.service';
-import { CreateSubscriptionDto } from './dto/create-subscription.dto';
+import { CreateSubscriptionDto, UpgradeSubscriptionDto } from './dto/create-subscription.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -14,6 +14,12 @@ import { UserRole } from '../../schemas/user.schema';
 export class SubscriptionsController {
 
     constructor(private readonly subscriptionsService: SubscriptionsService) { }
+
+    @Get('user')
+    @ApiOperation({ summary: 'Get current user\'s subscriptions' })
+    getMySubscriptions(@Request() req) {
+        return this.subscriptionsService.findByUser(req.user.userId);
+    }
 
     @Post()
     @ApiOperation({ summary: 'Create a new recurring subscription (ARB)' })
@@ -32,5 +38,12 @@ export class SubscriptionsController {
     @ApiOperation({ summary: 'Cancel an active subscription' })
     cancel(@Param('id') id: string, @Request() req) {
         return this.subscriptionsService.cancel(id, req.user);
+    }
+
+    @Put(':id/upgrade')
+    @Roles(UserRole.ADMIN, UserRole.USER)
+    @ApiOperation({ summary: 'Upgrade/Downgrade an active subscription (with proration)' })
+    upgrade(@Param('id') id: string, @Body() dto: UpgradeSubscriptionDto, @Request() req) {
+        return this.subscriptionsService.upgrade(id, dto, req.user);
     }
 }

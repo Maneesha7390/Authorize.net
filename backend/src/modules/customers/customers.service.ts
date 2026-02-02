@@ -69,6 +69,14 @@ export class CustomersService {
         return paymentProfile.save();
     }
 
+    async findPaymentProfiles(customerId: string): Promise<PaymentProfile[]> {
+        const customer = await this.customerModel.findById(customerId);
+        if (!customer) {
+            throw new NotFoundException('Customer not found');
+        }
+        return this.paymentProfileModel.find({ customerId: customer.id }).exec();
+    }
+
     async findAll(): Promise<Customer[]> {
         return this.customerModel.find().exec();
     }

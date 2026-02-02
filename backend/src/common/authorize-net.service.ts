@@ -207,10 +207,22 @@ export class AuthorizeNetService {
         }
     ): Promise<string> {
         const interval = new APIContracts.PaymentScheduleType.Interval();
-        interval.setLength(subscriptionData.intervalLength);
-        interval.setUnit(subscriptionData.intervalUnit === 'months'
-            ? APIContracts.ARBSubscriptionUnitEnum.MONTHS
-            : APIContracts.ARBSubscriptionUnitEnum.DAYS);
+
+        let unit = APIContracts.ARBSubscriptionUnitEnum.DAYS;
+        let length = subscriptionData.intervalLength;
+
+        if (subscriptionData.intervalUnit === 'months') {
+            unit = APIContracts.ARBSubscriptionUnitEnum.MONTHS;
+        } else if (subscriptionData.intervalUnit === 'years') {
+            unit = APIContracts.ARBSubscriptionUnitEnum.MONTHS;
+            length = subscriptionData.intervalLength * 12;
+        } else if (subscriptionData.intervalUnit === 'weeks') {
+            unit = APIContracts.ARBSubscriptionUnitEnum.DAYS;
+            length = subscriptionData.intervalLength * 7;
+        }
+
+        interval.setLength(length);
+        interval.setUnit(unit);
 
         const paymentSchedule = new APIContracts.PaymentScheduleType();
         paymentSchedule.setInterval(interval);
@@ -261,6 +273,61 @@ export class AuthorizeNetService {
         const ctrl = new APIControllers.ARBGetSubscriptionStatusController(getRequest.getJSON());
         const response = await this.execute(ctrl);
         return response.status;
+    }
+
+    // Subscriptions (ARB): Update Subscription
+    async updateSubscription(
+        subscriptionId: string,
+        updateData: {
+            name?: string;
+            amount?: number;
+            paymentProfileId?: string;
+            customerProfileId?: string;
+            intervalLength?: number;
+            intervalUnit?: string;
+        }
+    ): Promise<any> {
+        const subscriptionType = new APIContracts.ARBSubscriptionType();
+        if (updateData.name) subscriptionType.setName(updateData.name);
+        if (updateData.amount) subscriptionType.setAmount(updateData.amount);
+
+        if (updateData.intervalLength && updateData.intervalUnit) {
+            const interval = new APIContracts.PaymentScheduleType.Interval();
+            let unit = APIContracts.ARBSubscriptionUnitEnum.DAYS;
+            let length = updateData.intervalLength;
+
+            if (updateData.intervalUnit === 'months') {
+                unit = APIContracts.ARBSubscriptionUnitEnum.MONTHS;
+            } else if (updateData.intervalUnit === 'years') {
+                unit = APIContracts.ARBSubscriptionUnitEnum.MONTHS;
+                length = updateData.intervalLength * 12;
+            } else if (updateData.intervalUnit === 'weeks') {
+                unit = APIContracts.ARBSubscriptionUnitEnum.DAYS;
+                length = updateData.intervalLength * 7;
+            }
+
+            interval.setLength(length);
+            interval.setUnit(unit);
+
+            const paymentSchedule = new APIContracts.PaymentScheduleType();
+            paymentSchedule.setInterval(interval);
+            subscriptionType.setPaymentSchedule(paymentSchedule);
+        }
+
+        if (updateData.customerProfileId && updateData.paymentProfileId) {
+            const customerProfile = new APIContracts.CustomerProfileIdType();
+            customerProfile.setCustomerProfileId(updateData.customerProfileId);
+            customerProfile.setCustomerPaymentProfileId(updateData.paymentProfileId);
+            subscriptionType.setProfile(customerProfile);
+        }
+
+        const updateRequest = new APIContracts.ARBUpdateSubscriptionRequest();
+        updateRequest.setMerchantAuthentication(this.merchantAuthentication);
+        updateRequest.setSubscriptionId(subscriptionId);
+        updateRequest.setSubscription(subscriptionType);
+
+        const ctrl = new APIControllers.ARBUpdateSubscriptionController(updateRequest.getJSON());
+        return this.execute(ctrl);
     }
 }
 
