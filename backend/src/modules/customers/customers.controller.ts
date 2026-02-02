@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -19,9 +19,8 @@ export class CustomersController {
     @Post()
     @ApiOperation({ summary: 'Create a new customer profile' })
     @ApiResponse({ status: 201, description: 'Customer created successfully' })
-    create(@Body() createCustomerDto: CreateCustomerDto) {
-        return this.customersService.create(createCustomerDto);
-        
+    create(@Body() createCustomerDto: CreateCustomerDto, @Request() req) {
+        return this.customersService.create(createCustomerDto, req.user.userId);
     }
 
     @Post(':id/payment-profiles')

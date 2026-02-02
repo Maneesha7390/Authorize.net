@@ -15,7 +15,7 @@ export class CustomersService {
         private authNetService: AuthorizeNetService,
     ) { }
 
-    async create(createCustomerDto: CreateCustomerDto): Promise<Customer> {
+    async create(createCustomerDto: CreateCustomerDto, userId: string): Promise<Customer> {
         const existing = await this.customerModel.findOne({ email: createCustomerDto.email });
         if (existing) {
             throw new ConflictException('Customer with this email already exists');
@@ -32,6 +32,7 @@ export class CustomersService {
         const customer = new this.customerModel({
             ...createCustomerDto,
             authorizeNetCustomerId,
+            userId,
         });
         return customer.save();
     }

@@ -26,8 +26,9 @@ export class PaymentsController {
     @Post(':id/capture')
     @ApiOperation({ summary: 'Capture an authorized transaction' })
     @ApiBody({ type: CaptureDto, required: false })
-    capture(@Param('id') id: string, @Body() dto?: CaptureDto) {
-        return this.paymentsService.capture(id, dto?.amount);
+    @Roles(UserRole.ADMIN, UserRole.USER)
+    capture(@Param('id') id: string, @Request() req, @Body() dto?: CaptureDto) {
+        return this.paymentsService.capture(id, req.user, dto?.amount);
     }
 
     @Post('refund')

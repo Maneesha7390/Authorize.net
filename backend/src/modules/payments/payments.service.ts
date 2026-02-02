@@ -8,7 +8,6 @@ import { PaymentProfile } from '../../schemas/payment-profile.schema';
 import { AuthorizeNetService } from '../../common/authorize-net.service';
 import { ChargeProfileDto } from './dto/charge-profile.dto';
 import { RefundDto } from './dto/refund.dto';
-
 @Injectable()
 export class PaymentsService {
     constructor(
@@ -64,7 +63,7 @@ export class PaymentsService {
         }
     }
 
-    async capture(transactionId: string, amount?: number): Promise<Transaction> {
+    async capture(transactionId: string, user: any, amount?: number): Promise<Transaction> {
         try {
             if (!transactionId || transactionId.length !== 24) {
                 throw new BadRequestException('Invalid Transaction ID format. Please provide the 24-character MongoDB _id.');
@@ -72,6 +71,14 @@ export class PaymentsService {
 
             const originalTx = await this.transactionModel.findById(transactionId);
             if (!originalTx) throw new NotFoundException('Transaction not found');
+
+            // Ownership check (Added)
+            if (user && user.role !== 'admin') {
+                const customer = await this.customerModel.findById(originalTx.customerId);
+                if (!customer || customer.userId?.toString() !== user.userId?.toString()) {
+                    throw new ForbiddenException('You do not have permission to capture this transaction');
+                }
+            }
 
             // Use original amount if none provided
             const finalAmount = amount || originalTx.amount;
@@ -111,7 +118,7 @@ export class PaymentsService {
         // Ownership check
         if (user.role !== 'admin') {
             const customer = await this.customerModel.findById(tx.customerId);
-            if (!customer || customer.email !== user.email) {
+            if (!customer || customer.userId?.toString() !== user.userId?.toString()) {
                 throw new ForbiddenException('You do not have permission to refund this transaction');
             }
         }
@@ -149,7 +156,7 @@ export class PaymentsService {
         // Ownership check
         if (user.role !== 'admin') {
             const customer = await this.customerModel.findById(tx.customerId);
-            if (!customer || customer.email !== user.email) {
+            if (!customer || customer.userId?.toString() !== user.userId?.toString()) {
                 throw new ForbiddenException('You do not have permission to void this transaction');
             }
         }
@@ -157,7 +164,7 @@ export class PaymentsService {
         const response = await this.authNetService.voidTransaction(tx.authorizeNetTransactionId);
 
         tx.status = TransactionStatus.VOIDED;
-        tx.rawResponse = response;
+        tx.rawResponse = JSON.parse(JSON.stringify(response));
         return tx.save();
     }
 }

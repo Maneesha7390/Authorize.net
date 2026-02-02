@@ -1,8 +1,11 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Schema as MongooseSchema } from 'mongoose';
 
 @Schema({ timestamps: true })
 export class Customer extends Document {
+    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+    userId: string;
+
     @Prop({ required: true, unique: true })
     email: string;
 

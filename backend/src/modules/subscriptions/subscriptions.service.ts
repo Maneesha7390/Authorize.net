@@ -63,7 +63,7 @@ export class SubscriptionsService {
         // Ownership check
         if (user.role !== 'admin') {
             const customer = await this.customerModel.findById(subscription.customerId);
-            if (!customer || customer.email !== user.email) {
+            if (!customer || customer.userId?.toString() !== user.userId?.toString()) {
                 throw new ForbiddenException('You do not have permission to cancel this subscription');
             }
         }
