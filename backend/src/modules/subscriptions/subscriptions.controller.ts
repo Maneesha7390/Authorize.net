@@ -21,6 +21,12 @@ export class SubscriptionsController {
         return this.subscriptionsService.findByUser(req.user.userId);
     }
 
+    @Get('customer/:customerId')
+    @ApiOperation({ summary: 'Get subscriptions for a specific customer' })
+    getByCustomer(@Param('customerId') customerId: string, @Request() req) {
+        return this.subscriptionsService.findByCustomer(customerId, req.user);
+    }
+
     @Post()
     @ApiOperation({ summary: 'Create a new recurring subscription (ARB)' })
     create(@Body() dto: CreateSubscriptionDto) {

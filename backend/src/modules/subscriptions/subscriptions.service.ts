@@ -251,4 +251,18 @@ export class SubscriptionsService {
             customerId: { $in: customerIds }
         } as any).sort({ createdAt: -1 }).exec();
     }
+
+    async findByCustomer(customerId: string, user: any): Promise<Subscription[]> {
+        const customer = await this.customerModel.findById(customerId);
+        if (!customer) throw new NotFoundException('Customer not found');
+
+        // Ownership check
+        if (user.role !== 'admin' && customer.userId?.toString() !== user.userId?.toString()) {
+            throw new ForbiddenException('You do not have permission to view subscriptions for this customer');
+        }
+
+        return this.subscriptionModel.find({ customerId } as any)
+            .sort({ createdAt: -1 })
+            .exec();
+    }
 }
