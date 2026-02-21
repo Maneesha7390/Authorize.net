@@ -7,6 +7,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PlansModule } from './modules/plans/plans.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { PlansModule } from './modules/plans/plans.module';
     SubscriptionsModule,
     WebhooksModule,
     PlansModule,
+    AdminModule,
   ],
 })
 export class AppModule { }

@@ -6,7 +6,7 @@ import { Refund } from '../../schemas/refund.schema';
 import { Customer } from '../../schemas/customer.schema';
 import { PaymentProfile } from '../../schemas/payment-profile.schema';
 import { AuthorizeNetService } from '../../common/authorize-net.service';
-import { ChargeProfileDto } from './dto/charge-profile.dto';
+import { ChargeProfileDto, OneTimePaymentDto } from './dto/charge-profile.dto';
 import { RefundDto } from './dto/refund.dto';
 @Injectable()
 export class PaymentsService {
@@ -18,7 +18,45 @@ export class PaymentsService {
         private authNetService: AuthorizeNetService,
     ) { }
 
-    async chargeProfile(dto: ChargeProfileDto): Promise<Transaction> {
+    // ─── ONE-TIME RAW CARD PAYMENT ─────────────────────────────────────────────
+    async chargeOneTime(dto: OneTimePaymentDto, userId: string): Promise<Transaction> {
+        try {
+            const cleanedExp = dto.cardDetails.expirationDate.replace('/', '');
+            const response = await this.authNetService.chargeRawCard(
+                { ...dto.cardDetails, expirationDate: cleanedExp },
+                dto.amount,
+                dto.immediateCapture !== false,
+            );
+
+            const txResponseCode = response.responseCode;
+            const isSuccess = txResponseCode === '1';
+
+            let responseText = 'No message provided';
+            if (response.messages?.message?.length > 0) {
+                responseText = response.messages.message[0].description;
+            }
+
+            const transaction = new this.transactionModel({
+                userId,                // ← track the logged-in user directly
+                authorizeNetTransactionId: response.transId,
+                amount: dto.amount,
+                type: dto.immediateCapture === false ? TransactionType.AUTHORIZE : TransactionType.CHARGE,
+                status: isSuccess ? TransactionStatus.SUCCESS : TransactionStatus.FAILED,
+                responseCode: txResponseCode,
+                responseText,
+                rawResponse: JSON.parse(JSON.stringify(response)),
+            });
+
+            return transaction.save();
+        } catch (error) {
+            console.error('One-Time Payment Error:', error);
+            if (error instanceof BadRequestException) throw error;
+            throw new BadRequestException(error.message || 'One-time payment failed');
+        }
+    }
+
+    // ─── CIM STORED-CARD PAYMENT ───────────────────────────────────────────────
+    async chargeProfile(dto: ChargeProfileDto, userId: string): Promise<Transaction> {
         try {
             const customer = await this.customerModel.findById(dto.customerId);
             const paymentProfile = await this.paymentProfileModel.findById(dto.paymentProfileId);
@@ -27,38 +65,37 @@ export class PaymentsService {
                 throw new NotFoundException('Customer or Payment Profile not found');
             }
 
-            // 1. Authorize transaction in Authorize.Net
             const response = await this.authNetService.chargeCustomerProfile(
                 customer.authorizeNetCustomerId,
                 paymentProfile.authorizeNetPaymentProfileId,
                 dto.amount,
-                dto.immediateCapture !== false, // Default to true if not provided
+                dto.immediateCapture !== false,
             );
 
             const txResponseCode = response.responseCode;
             const isSuccess = txResponseCode === '1';
 
-            // Get message safely
             let responseText = 'No message provided';
-            if (response.messages && response.messages.message && response.messages.message.length > 0) {
+            if (response.messages?.message?.length > 0) {
                 responseText = response.messages.message[0].description;
             }
 
-            // 2. Save transaction in MongoDB
             const transaction = new this.transactionModel({
-                customerId: customer._id,
+                userId,                // ← track the logged-in user directly
+                customerId: dto.customerId,
                 authorizeNetTransactionId: response.transId,
                 amount: dto.amount,
-                type: TransactionType.CHARGE,
+                type: dto.immediateCapture === false ? TransactionType.AUTHORIZE : TransactionType.CHARGE,
                 status: isSuccess ? TransactionStatus.SUCCESS : TransactionStatus.FAILED,
                 responseCode: txResponseCode,
-                responseText: responseText,
-                rawResponse: JSON.parse(JSON.stringify(response)), // Ensure it's a plain object for Mongoose
+                responseText,
+                rawResponse: JSON.parse(JSON.stringify(response)),
             });
 
             return transaction.save();
         } catch (error) {
-            if (error instanceof NotFoundException) throw error;
+            console.error('CIM Payment Error:', error);
+            if (error instanceof NotFoundException || error instanceof BadRequestException) throw error;
             throw new BadRequestException(error.message || 'Payment processing failed');
         }
     }
@@ -70,12 +107,25 @@ export class PaymentsService {
             }
 
             const originalTx = await this.transactionModel.findById(transactionId);
-            if (!originalTx) throw new NotFoundException('Transaction not found');
+            if (!originalTx) {
+                throw new NotFoundException('Transaction not found');
+            }
 
-            // Ownership check (Added)
+            // Guard: Ensure we are only capturing an AUTHORIZE transaction
+            if (originalTx.type !== TransactionType.AUTHORIZE) {
+                throw new BadRequestException(
+                    `Cannot capture a transaction with type '${originalTx.type}'. ` +
+                    `You can only capture transactions that were created with 'immediateCapture: false'.`
+                );
+            }
+
+            // Ownership check
             if (user && user.role !== 'admin') {
-                const customer = await this.customerModel.findById(originalTx.customerId);
-                if (!customer || customer.userId?.toString() !== user.userId?.toString()) {
+                // For one-time payments userId is stored directly; for CIM go through customer
+                const directOwner = originalTx.userId?.toString() === user.userId?.toString();
+                const customer = originalTx.customerId ? await this.customerModel.findById(originalTx.customerId) : null;
+                const cimOwner = customer && customer.userId?.toString() === user.userId?.toString();
+                if (!directOwner && !cimOwner) {
                     throw new ForbiddenException('You do not have permission to capture this transaction');
                 }
             }
@@ -104,7 +154,7 @@ export class PaymentsService {
 
             return captureTx.save();
         } catch (error) {
-            if (error instanceof NotFoundException || error instanceof BadRequestException) {
+            if (error instanceof NotFoundException || error instanceof BadRequestException || error instanceof ForbiddenException) {
                 throw error;
             }
             throw new BadRequestException(`Capture failed: ${error.message}`);
@@ -112,68 +162,136 @@ export class PaymentsService {
     }
 
     async refund(dto: RefundDto, user: any): Promise<Refund> {
-        const tx = await this.transactionModel.findById(dto.transactionId);
-        if (!tx) throw new NotFoundException('Transaction not found');
+        try {
+            const tx = await this.transactionModel.findById(dto.transactionId);
+            if (!tx) throw new NotFoundException('Transaction not found');
 
-        // Ownership check
-        if (user.role !== 'admin') {
-            const customer = await this.customerModel.findById(tx.customerId);
-            if (!customer || customer.userId?.toString() !== user.userId?.toString()) {
-                throw new ForbiddenException('You do not have permission to refund this transaction');
+            // Ownership check
+            if (user.role !== 'admin') {
+                const directOwner = tx.userId?.toString() === user.userId?.toString();
+                const customer = tx.customerId ? await this.customerModel.findById(tx.customerId) : null;
+                const cimOwner = customer && customer.userId?.toString() === user.userId?.toString();
+                if (!directOwner && !cimOwner) {
+                    throw new ForbiddenException('You do not have permission to refund this transaction');
+                }
             }
+
+            let cardInfo = {
+                cardType: dto.cardType,
+                last4: dto.last4,
+                expirationDate: dto.expirationDate?.replace('/', ''),
+            };
+
+            // Attempt to get card info from payment profile if customerId and payment ID were used (CIM flow)
+            if (!cardInfo.last4 || !cardInfo.expirationDate) {
+                const paymentProfile = await this.paymentProfileModel.findOne({ customerId: tx.customerId, isDefault: true });
+                if (paymentProfile) {
+                    cardInfo.cardType = cardInfo.cardType || paymentProfile.cardType;
+                    cardInfo.last4 = cardInfo.last4 || paymentProfile.last4;
+                    cardInfo.expirationDate = cardInfo.expirationDate || paymentProfile.expirationDate;
+                }
+            }
+
+            // Fallback: Extract last4 and cardType from rawResponse of the original transaction
+            if (!cardInfo.last4 && tx.rawResponse?.accountNumber) {
+                cardInfo.last4 = tx.rawResponse.accountNumber.replace(/X/g, '');
+            }
+            if (!cardInfo.cardType && tx.rawResponse?.accountType) {
+                cardInfo.cardType = tx.rawResponse.accountType;
+            }
+
+            // Validation: Authorize.net NEEDS these for a refund
+            if (!cardInfo.last4 || !cardInfo.expirationDate) {
+                throw new BadRequestException(
+                    'To refund this transaction, you must provide the expirationDate (MMYY). ' +
+                    'The last4 digits were ' + (cardInfo.last4 ? 'found' : 'not found') + '.'
+                );
+            }
+
+            console.log(`Attempting refund for transId: ${tx.authorizeNetTransactionId}, amount: ${dto.amount}`);
+
+            const response = await this.authNetService.refundTransaction(
+                tx.authorizeNetTransactionId,
+                dto.amount,
+                {
+                    cardType: cardInfo.cardType || 'Visa',
+                    last4: cardInfo.last4,
+                    expirationDate: cardInfo.expirationDate,
+                },
+            );
+
+            const refund = new this.refundModel({
+                originalTransactionId: tx._id,
+                authorizeNetRefundTransactionId: response.transId,
+                amount: dto.amount,
+                reason: dto.reason,
+            });
+
+            tx.status = TransactionStatus.REFUNDED;
+            await tx.save();
+
+            return refund.save();
+        } catch (error) {
+            console.error('Refund Method Error:', error);
+            if (error instanceof NotFoundException || error instanceof BadRequestException || error instanceof ForbiddenException) {
+                throw error;
+            }
+            throw new BadRequestException(`Refund failed: ${error.message}`);
         }
-
-        const paymentProfile = await this.paymentProfileModel.findOne({ customerId: tx.customerId, isDefault: true }); // Simplified for demo
-        if (!paymentProfile) throw new BadRequestException('Payment profile not found for refund');
-
-        const response = await this.authNetService.refundTransaction(
-            tx.authorizeNetTransactionId,
-            dto.amount,
-            {
-                cardType: paymentProfile.cardType,
-                last4: paymentProfile.last4,
-                expirationDate: paymentProfile.expirationDate,
-            },
-        );
-
-        const refund = new this.refundModel({
-            originalTransactionId: tx._id,
-            authorizeNetRefundTransactionId: response.transId,
-            amount: dto.amount,
-            reason: dto.reason,
-        });
-
-        tx.status = TransactionStatus.REFUNDED;
-        await tx.save();
-
-        return refund.save();
     }
 
     async void(transactionId: string, user: any): Promise<Transaction> {
-        const tx = await this.transactionModel.findById(transactionId);
-        if (!tx) throw new NotFoundException('Transaction not found');
+        try {
+            const tx = await this.transactionModel.findById(transactionId);
+            if (!tx) throw new NotFoundException('Transaction not found');
 
-        // Ownership check
-        if (user.role !== 'admin') {
-            const customer = await this.customerModel.findById(tx.customerId);
-            if (!customer || customer.userId?.toString() !== user.userId?.toString()) {
-                throw new ForbiddenException('You do not have permission to void this transaction');
+            // Prevent voiding if already processed
+            if (tx.status === TransactionStatus.VOIDED) {
+                throw new BadRequestException('Transaction is already voided');
             }
+            if (tx.status === TransactionStatus.REFUNDED) {
+                throw new BadRequestException('Cannot void a refunded transaction. Use refund instead.');
+            }
+
+            // Ownership check
+            if (user.role !== 'admin') {
+                const directOwner = tx.userId?.toString() === user.userId?.toString();
+                const customer = tx.customerId ? await this.customerModel.findById(tx.customerId) : null;
+                const cimOwner = customer && customer.userId?.toString() === user.userId?.toString();
+                if (!directOwner && !cimOwner) {
+                    throw new ForbiddenException('You do not have permission to void this transaction');
+                }
+            }
+
+            console.log(`Attempting to void transaction: ${tx.authorizeNetTransactionId} (Type: ${tx.type})`);
+
+            const response = await this.authNetService.voidTransaction(tx.authorizeNetTransactionId);
+
+            tx.status = TransactionStatus.VOIDED;
+            tx.responseText = 'Transaction voided successfully';
+            tx.rawResponse = JSON.parse(JSON.stringify(response));
+
+            console.log(`Void successful for transaction: ${tx.authorizeNetTransactionId}`);
+            return tx.save();
+        } catch (error) {
+            console.error('Void Method Error:', error);
+            if (error instanceof NotFoundException || error instanceof BadRequestException || error instanceof ForbiddenException) {
+                throw error;
+            }
+            throw new BadRequestException(`Void failed: ${error.message}. Note: You can only void transactions that have not yet settled (usually within 24 hours).`);
         }
-
-        const response = await this.authNetService.voidTransaction(tx.authorizeNetTransactionId);
-
-        tx.status = TransactionStatus.VOIDED;
-        tx.rawResponse = JSON.parse(JSON.stringify(response));
-        return tx.save();
     }
 
     async findAllByUser(userId: string): Promise<Transaction[]> {
         const customers = await this.customerModel.find({ userId }).select('_id');
         const customerIds = customers.map(c => c._id);
 
+        // Return both: one-time payments (userId match) and CIM payments (customerId match)
         return this.transactionModel.find({
-            customerId: { $in: customerIds }
+            $or: [
+                { userId },
+                { customerId: { $in: customerIds } },
+            ],
         } as any).sort({ createdAt: -1 }).exec();
     }
 }

@@ -4,6 +4,7 @@ import { CustomersController } from './customers.controller';
 import { CustomersService } from './customers.service';
 import { Customer, CustomerSchema } from '../../schemas/customer.schema';
 import { PaymentProfile, PaymentProfileSchema } from '../../schemas/payment-profile.schema';
+import { User, UserSchema } from '../../schemas/user.schema';
 import { AuthorizeNetService } from '../../common/authorize-net.service';
 
 @Module({
@@ -11,6 +12,7 @@ import { AuthorizeNetService } from '../../common/authorize-net.service';
         MongooseModule.forFeature([
             { name: Customer.name, schema: CustomerSchema },
             { name: PaymentProfile.name, schema: PaymentProfileSchema },
+            { name: User.name, schema: UserSchema },
         ]),
     ],
     controllers: [CustomersController],

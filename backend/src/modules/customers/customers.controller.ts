@@ -8,6 +8,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../schemas/user.schema';
 
+import { AddCardDto, AddCardResponseDto } from './dto/add-card.dto';
+
 @ApiTags('Customers')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -15,6 +17,16 @@ import { UserRole } from '../../schemas/user.schema';
 export class CustomersController {
 
     constructor(private readonly customersService: CustomersService) { }
+
+    @Post('add-card')
+    @ApiOperation({
+        summary: 'Unified endpoint to create/retrieve customer and add a card',
+        description: 'Check if customer exists by email. If not, creates one in Authorize.net and DB. Then adds the payment profile. Returns IDs needed for subscription.'
+    })
+    @ApiResponse({ status: 201, description: 'Customer and card ready for subscription', type: AddCardResponseDto })
+    addCard(@Body() dto: AddCardDto, @Request() req) {
+        return this.customersService.addCardAndSyncCustomer(dto, req.user.userId);
+    }
 
     @Post()
     @ApiOperation({ summary: 'Create a new customer profile' })

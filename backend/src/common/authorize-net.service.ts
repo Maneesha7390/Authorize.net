@@ -132,6 +132,38 @@ export class AuthorizeNetService {
         return response.transactionResponse;
     }
 
+    // Payments: Charge Raw Credit Card (One-Time, Non-CIM)
+    async chargeRawCard(
+        cardInfo: { cardNumber: string; expirationDate: string; cardCode: string },
+        amount: number,
+        immediateCapture: boolean = true,
+    ): Promise<any> {
+        const creditCard = new APIContracts.CreditCardType();
+        creditCard.setCardNumber(cardInfo.cardNumber);
+        creditCard.setExpirationDate(cardInfo.expirationDate);
+        creditCard.setCardCode(cardInfo.cardCode);
+
+        const paymentType = new APIContracts.PaymentType();
+        paymentType.setCreditCard(creditCard);
+
+        const transactionRequestType = new APIContracts.TransactionRequestType();
+        transactionRequestType.setTransactionType(
+            immediateCapture
+                ? APIContracts.TransactionTypeEnum.AUTHCAPTURETRANSACTION
+                : APIContracts.TransactionTypeEnum.AUTHONLYTRANSACTION
+        );
+        transactionRequestType.setAmount(amount);
+        transactionRequestType.setPayment(paymentType);
+
+        const createRequest = new APIContracts.CreateTransactionRequest();
+        createRequest.setMerchantAuthentication(this.merchantAuthentication);
+        createRequest.setTransactionRequest(transactionRequestType);
+
+        const ctrl = new APIControllers.CreateTransactionController(createRequest.getJSON());
+        const response = await this.execute(ctrl);
+        return response.transactionResponse;
+    }
+
     // Payments: Capture Previously Authorized Transaction
     async captureTransaction(transactionId: string, amount: number): Promise<any> {
         const transactionRequestType = new APIContracts.TransactionRequestType();

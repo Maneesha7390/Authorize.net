@@ -1,7 +1,7 @@
 import { Controller, Post, Body, Param, Put, UseGuards, Request, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
-import { ChargeProfileDto } from './dto/charge-profile.dto';
+import { ChargeProfileDto, OneTimePaymentDto } from './dto/charge-profile.dto';
 import { RefundDto } from './dto/refund.dto';
 import { CaptureDto } from './dto/capture.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -23,10 +23,16 @@ export class PaymentsController {
         return this.paymentsService.findAllByUser(req.user.userId);
     }
 
+    @Post('charge/one-time')
+    @ApiOperation({ summary: 'One-time raw card payment — no customer/profile ID needed, just card details + amount' })
+    chargeOneTime(@Body() dto: OneTimePaymentDto, @Request() req) {
+        return this.paymentsService.chargeOneTime(dto, req.user.userId);
+    }
+
     @Post('charge')
-    @ApiOperation({ summary: 'Charge a saved customer profile' })
-    charge(@Body() dto: ChargeProfileDto) {
-        return this.paymentsService.chargeProfile(dto);
+    @ApiOperation({ summary: 'Process a payment using a stored CIM profile (customerId + paymentProfileId required)' })
+    charge(@Body() dto: ChargeProfileDto, @Request() req) {
+        return this.paymentsService.chargeProfile(dto, req.user.userId);
     }
 
     @Post(':id/capture')

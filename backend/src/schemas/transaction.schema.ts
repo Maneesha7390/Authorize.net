@@ -17,6 +17,9 @@ export enum TransactionType {
 
 @Schema({ timestamps: true })
 export class Transaction extends Document {
+    @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+    userId: string;
+
     @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Customer' })
     customerId: string;
 
@@ -53,5 +56,6 @@ export class Transaction extends Document {
 
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);
 TransactionSchema.index({ authorizeNetTransactionId: 1 });
+TransactionSchema.index({ userId: 1 });
 TransactionSchema.index({ customerId: 1 });
 TransactionSchema.index({ status: 1 });
