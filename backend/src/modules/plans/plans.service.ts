@@ -23,18 +23,27 @@ export class PlansService {
     }
 
     async findOne(id: string): Promise<Plan> {
+        if (!id || id.length !== 24) {
+            throw new NotFoundException('Plan not found (Invalid ID format)');
+        }
         const plan = await this.planModel.findById(id);
         if (!plan) throw new NotFoundException('Plan not found');
         return plan;
     }
 
     async update(id: string, dto: UpdatePlanDto): Promise<Plan> {
+        if (!id || id.length !== 24) {
+            throw new NotFoundException('Plan not found (Invalid ID format)');
+        }
         const plan = await this.planModel.findByIdAndUpdate(id, dto, { new: true });
         if (!plan) throw new NotFoundException('Plan not found');
         return plan;
     }
 
     async remove(id: string): Promise<void> {
+        if (!id || id.length !== 24) {
+            throw new NotFoundException('Plan not found (Invalid ID format)');
+        }
         const result = await this.planModel.findByIdAndDelete(id);
         if (!result) throw new NotFoundException('Plan not found');
     }

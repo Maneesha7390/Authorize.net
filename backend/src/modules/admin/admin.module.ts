@@ -5,6 +5,7 @@ import { AdminService } from './admin.service';
 import { User, UserSchema } from '../../schemas/user.schema';
 import { Customer, CustomerSchema } from '../../schemas/customer.schema';
 import { Transaction, TransactionSchema } from '../../schemas/transaction.schema';
+import { Subscription, SubscriptionSchema } from '../../schemas/subscription.schema';
 
 @Module({
     imports: [
@@ -12,6 +13,7 @@ import { Transaction, TransactionSchema } from '../../schemas/transaction.schema
             { name: User.name, schema: UserSchema },
             { name: Customer.name, schema: CustomerSchema },
             { name: Transaction.name, schema: TransactionSchema },
+            { name: Subscription.name, schema: SubscriptionSchema },
         ]),
     ],
     controllers: [AdminController],

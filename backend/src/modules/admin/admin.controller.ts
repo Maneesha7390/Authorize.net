@@ -32,4 +32,13 @@ export class AdminController {
     getUserTransactions(@Param('userId') userId: string) {
         return this.adminService.getUserTransactions(userId);
     }
+
+    @Get('users/:userId/subscriptions')
+    @ApiOperation({
+        summary: 'Get all subscriptions for a specific user',
+        description: 'Admin only. Returns all ARB subscriptions associated with the specified user.',
+    })
+    getUserSubscriptions(@Param('userId') userId: string) {
+        return this.adminService.getUserSubscriptions(userId);
+    }
 }

@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Customer } from '../../schemas/customer.schema';
@@ -60,6 +60,9 @@ export class CustomersService {
 
             // 3. Add Payment Profile
             // Authorize.net expects YYYY-MM format. Convert from MM/YY (e.g. "12/30" → "2030-12")
+            if (!dto.expirationDate || !dto.expirationDate.includes('/')) {
+                throw new BadRequestException('Invalid expiration date format. Expected MM/YY');
+            }
             const [mm, yy] = dto.expirationDate.split('/');
             const cleanedExp = `20${yy}-${mm}`;
             console.log('>>> ADD CARD: Expiration converted:', dto.expirationDate, '→', cleanedExp);
@@ -171,6 +174,9 @@ export class CustomersService {
     }
 
     async findOne(id: string): Promise<Customer> {
+        if (!id || id.length !== 24) {
+            throw new NotFoundException('Customer not found (Invalid ID format)');
+        }
         const customer = await this.customerModel.findById(id).exec();
         if (!customer) throw new NotFoundException('Customer not found');
         return customer;

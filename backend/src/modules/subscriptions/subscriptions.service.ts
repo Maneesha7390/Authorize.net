@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Subscription, SubscriptionStatus } from '../../schemas/subscription.schema';
@@ -68,6 +68,9 @@ export class SubscriptionsService {
     }
 
     async cancel(id: string, user: any): Promise<Subscription> {
+        if (!id || id.length !== 24) {
+            throw new NotFoundException('Subscription not found (Invalid ID format)');
+        }
         const subscription = await this.subscriptionModel.findById(id);
         if (!subscription) throw new NotFoundException('Subscription not found');
 
@@ -86,6 +89,9 @@ export class SubscriptionsService {
     }
 
     async getStatus(id: string): Promise<string> {
+        if (!id || id.length !== 24) {
+            throw new NotFoundException('Subscription not found (Invalid ID format)');
+        }
         const subscription = await this.subscriptionModel.findById(id);
         if (!subscription) throw new NotFoundException('Subscription not found');
 
@@ -101,6 +107,9 @@ export class SubscriptionsService {
     }
 
     async upgrade(id: string, dto: UpgradeSubscriptionDto, user: any): Promise<any> {
+        if (!id || id.length !== 24) {
+            throw new NotFoundException('Subscription not found (Invalid ID format)');
+        }
         const subscription = await this.subscriptionModel.findById(id);
         if (!subscription) throw new NotFoundException('Subscription not found');
 
@@ -253,6 +262,9 @@ export class SubscriptionsService {
     }
 
     async findByCustomer(customerId: string, user: any): Promise<Subscription[]> {
+        if (!customerId || customerId.length !== 24) {
+            throw new NotFoundException('Customer not found (Invalid ID format)');
+        }
         const customer = await this.customerModel.findById(customerId);
         if (!customer) throw new NotFoundException('Customer not found');
 
@@ -264,5 +276,78 @@ export class SubscriptionsService {
         return this.subscriptionModel.find({ customerId } as any)
             .sort({ createdAt: -1 })
             .exec();
+    }
+
+    async pause(id: string, user: any): Promise<Subscription> {
+        if (!id || id.length !== 24) {
+            throw new BadRequestException('Invalid Subscription ID format');
+        }
+
+        const subscription = await this.subscriptionModel.findById(id);
+        if (!subscription) throw new NotFoundException('Subscription not found');
+
+        // Ownership check
+        if (user.role !== 'admin') {
+            const customer = await this.customerModel.findById(subscription.customerId);
+            if (!customer || customer.userId?.toString() !== user.userId?.toString()) {
+                throw new ForbiddenException('You do not have permission to pause this subscription');
+            }
+        }
+
+        if (subscription.status !== SubscriptionStatus.ACTIVE) {
+            throw new BadRequestException(`Only ACTIVE subscriptions can be paused. Current status: ${subscription.status}`);
+        }
+
+        try {
+            // 1. Get current subscription from Authorize.Net to see how many payments are done
+            const authNetSub = await this.authNetService.getSubscription(subscription.authorizeNetSubscriptionId);
+            const pastOccurrences = authNetSub.getPastOccurrences();
+
+            // 2. Set totalOccurrences to pastOccurrences to stop billing
+            await this.authNetService.updateSubscription(subscription.authorizeNetSubscriptionId, {
+                totalOccurrences: pastOccurrences,
+            });
+
+            // 3. Update DB
+            subscription.status = SubscriptionStatus.SUSPENDED;
+            return subscription.save();
+        } catch (error) {
+            throw new BadRequestException(`Failed to pause subscription: ${error.message}`);
+        }
+    }
+
+    async resume(id: string, user: any): Promise<Subscription> {
+        if (!id || id.length !== 24) {
+            throw new BadRequestException('Invalid Subscription ID format');
+        }
+
+        const subscription = await this.subscriptionModel.findById(id);
+        if (!subscription) throw new NotFoundException('Subscription not found');
+
+        // Ownership check
+        if (user.role !== 'admin') {
+            const customer = await this.customerModel.findById(subscription.customerId);
+            if (!customer || customer.userId?.toString() !== user.userId?.toString()) {
+                throw new ForbiddenException('You do not have permission to resume this subscription');
+            }
+        }
+
+        if (subscription.status !== SubscriptionStatus.SUSPENDED) {
+            throw new BadRequestException(`Only SUSPENDED subscriptions can be resumed. Current status: ${subscription.status}`);
+        }
+
+        try {
+            // 1. Set totalOccurrences back to original high number (e.g. 9999 or original value)
+            const restoreOccurrences = subscription.totalOccurrences || 9999;
+            await this.authNetService.updateSubscription(subscription.authorizeNetSubscriptionId, {
+                totalOccurrences: restoreOccurrences,
+            });
+
+            // 2. Update DB
+            subscription.status = SubscriptionStatus.ACTIVE;
+            return subscription.save();
+        } catch (error) {
+            throw new BadRequestException(`Failed to resume subscription: ${error.message}`);
+        }
     }
 }

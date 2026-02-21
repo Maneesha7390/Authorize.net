@@ -32,5 +32,4 @@ export class Plan extends Document {
 }
 
 export const PlanSchema = SchemaFactory.createForClass(Plan);
-PlanSchema.index({ name: 1 });
 PlanSchema.index({ isActive: 1 });

@@ -122,9 +122,9 @@ export class PaymentsService {
             // Ownership check
             if (user && user.role !== 'admin') {
                 // For one-time payments userId is stored directly; for CIM go through customer
-                const directOwner = originalTx.userId?.toString() === user.userId?.toString();
+                const directOwner = originalTx.userId && originalTx.userId.toString() === user.userId?.toString();
                 const customer = originalTx.customerId ? await this.customerModel.findById(originalTx.customerId) : null;
-                const cimOwner = customer && customer.userId?.toString() === user.userId?.toString();
+                const cimOwner = customer && customer.userId && customer.userId.toString() === user.userId?.toString();
                 if (!directOwner && !cimOwner) {
                     throw new ForbiddenException('You do not have permission to capture this transaction');
                 }
@@ -168,9 +168,9 @@ export class PaymentsService {
 
             // Ownership check
             if (user.role !== 'admin') {
-                const directOwner = tx.userId?.toString() === user.userId?.toString();
+                const directOwner = tx.userId && tx.userId.toString() === user.userId?.toString();
                 const customer = tx.customerId ? await this.customerModel.findById(tx.customerId) : null;
-                const cimOwner = customer && customer.userId?.toString() === user.userId?.toString();
+                const cimOwner = customer && customer.userId && customer.userId.toString() === user.userId?.toString();
                 if (!directOwner && !cimOwner) {
                     throw new ForbiddenException('You do not have permission to refund this transaction');
                 }
@@ -255,9 +255,9 @@ export class PaymentsService {
 
             // Ownership check
             if (user.role !== 'admin') {
-                const directOwner = tx.userId?.toString() === user.userId?.toString();
+                const directOwner = tx.userId && tx.userId.toString() === user.userId?.toString();
                 const customer = tx.customerId ? await this.customerModel.findById(tx.customerId) : null;
-                const cimOwner = customer && customer.userId?.toString() === user.userId?.toString();
+                const cimOwner = customer && customer.userId && customer.userId.toString() === user.userId?.toString();
                 if (!directOwner && !cimOwner) {
                     throw new ForbiddenException('You do not have permission to void this transaction');
                 }
@@ -283,6 +283,9 @@ export class PaymentsService {
     }
 
     async findAllByUser(userId: string): Promise<Transaction[]> {
+        if (!userId || userId.length !== 24) {
+            return []; // Return empty if invalid ID format instead of crashing
+        }
         const customers = await this.customerModel.find({ userId }).select('_id');
         const customerIds = customers.map(c => c._id);
 

@@ -307,6 +307,18 @@ export class AuthorizeNetService {
         return response.status;
     }
 
+    // Subscriptions (ARB): Get Full Details
+    async getSubscription(subscriptionId: string): Promise<any> {
+        const getRequest = new APIContracts.ARBGetSubscriptionRequest();
+        getRequest.setMerchantAuthentication(this.merchantAuthentication);
+        getRequest.setSubscriptionId(subscriptionId);
+        getRequest.setIncludeTransactions(false);
+
+        const ctrl = new APIControllers.ARBGetSubscriptionController(getRequest.getJSON());
+        const response = await this.execute(ctrl);
+        return response.subscription;
+    }
+
     // Subscriptions (ARB): Update Subscription
     async updateSubscription(
         subscriptionId: string,
@@ -317,11 +329,23 @@ export class AuthorizeNetService {
             customerProfileId?: string;
             intervalLength?: number;
             intervalUnit?: string;
+            totalOccurrences?: number;
+            status?: string;
         }
     ): Promise<any> {
         const subscriptionType = new APIContracts.ARBSubscriptionType();
         if (updateData.name) subscriptionType.setName(updateData.name);
         if (updateData.amount) subscriptionType.setAmount(updateData.amount);
+        if (updateData.totalOccurrences !== undefined) {
+            const paymentSchedule = new APIContracts.PaymentScheduleType();
+            paymentSchedule.setTotalOccurrences(updateData.totalOccurrences);
+            subscriptionType.setPaymentSchedule(paymentSchedule);
+        }
+        if (updateData.status) {
+            // Note: ARB API usually doesn't allow manual status changes to 'suspended',
+            // but we'll include it in case the SDK supports specific transitions.
+            // The standard way is the occurrences method.
+        }
 
         if (updateData.intervalLength && updateData.intervalUnit) {
             const interval = new APIContracts.PaymentScheduleType.Interval();

@@ -36,9 +36,9 @@ export class PaymentsController {
     }
 
     @Post(':id/capture')
-    @ApiOperation({ summary: 'Capture an authorized transaction' })
+    @ApiOperation({ summary: 'Capture an authorized transaction (Admin only)' })
     @ApiBody({ type: CaptureDto, required: false })
-    @Roles(UserRole.ADMIN, UserRole.USER)
+    @Roles(UserRole.ADMIN)
     capture(@Param('id') id: string, @Request() req, @Body() dto?: CaptureDto) {
         return this.paymentsService.capture(id, req.user, dto?.amount);
     }

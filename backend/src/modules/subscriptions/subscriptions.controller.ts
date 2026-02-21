@@ -52,4 +52,18 @@ export class SubscriptionsController {
     upgrade(@Param('id') id: string, @Body() dto: UpgradeSubscriptionDto, @Request() req) {
         return this.subscriptionsService.upgrade(id, dto, req.user);
     }
+
+    @Post(':id/pause')
+    @Roles(UserRole.ADMIN, UserRole.USER)
+    @ApiOperation({ summary: 'Pause (Suspend) an active subscription' })
+    pause(@Param('id') id: string, @Request() req) {
+        return this.subscriptionsService.pause(id, req.user);
+    }
+
+    @Post(':id/resume')
+    @Roles(UserRole.ADMIN, UserRole.USER)
+    @ApiOperation({ summary: 'Resume a suspended subscription' })
+    resume(@Param('id') id: string, @Request() req) {
+        return this.subscriptionsService.resume(id, req.user);
+    }
 }
