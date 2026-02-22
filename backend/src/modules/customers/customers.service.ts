@@ -37,13 +37,27 @@ export class CustomersService {
             let customer = await this.customerModel.findOne({ userId });
 
             if (!customer) {
-                console.log('>>> ADD CARD: No customer found, creating new one...');
-                const authNetId = await this.authNetService.createCustomerProfile(
-                    user.email,
-                    firstName,
-                    lastName,
-                );
-                console.log('>>> ADD CARD: Authorize.net customer ID:', authNetId);
+                console.log('>>> ADD CARD: No customer found in DB, creating/syncing with Authorize.net...');
+                let authNetId: string;
+                try {
+                    authNetId = await this.authNetService.createCustomerProfile(
+                        user.email,
+                        firstName,
+                        lastName,
+                    );
+                    console.log('>>> ADD CARD: Created new Authorize.net customer ID:', authNetId);
+                } catch (error: any) {
+                    if (error.code === 'E00039') {
+                        console.log('>>> ADD CARD: Customer already exists in Authorize.net, fetching ID...');
+                        authNetId = await this.authNetService.getCustomerProfileIdByEmail(user.email);
+                        if (!authNetId) {
+                            throw new BadRequestException('Customer profile exists in Authorize.net but could not be retrieved.');
+                        }
+                        console.log('>>> ADD CARD: Synced existing Authorize.net customer ID:', authNetId);
+                    } else {
+                        throw error;
+                    }
+                }
 
                 customer = new this.customerModel({
                     email: user.email,
@@ -55,7 +69,7 @@ export class CustomersService {
                 await customer.save();
                 console.log('>>> ADD CARD: Customer saved in MongoDB');
             } else {
-                console.log('>>> ADD CARD: Existing customer found:', customer.authorizeNetCustomerId);
+                console.log('>>> ADD CARD: Existing customer found in DB:', customer.authorizeNetCustomerId);
             }
 
             // 3. Add Payment Profile
@@ -67,19 +81,52 @@ export class CustomersService {
             const cleanedExp = `20${yy}-${mm}`;
             console.log('>>> ADD CARD: Expiration converted:', dto.expirationDate, '→', cleanedExp);
 
-            const authNetPaymentId = await this.authNetService.createPaymentProfile(
-                customer.authorizeNetCustomerId,
-                {
-                    cardNumber: dto.cardNumber,
-                    expirationDate: cleanedExp,
-                    cardCode: dto.cardCode,
-                },
-                {
-                    firstName: customer.firstName,
-                    lastName: customer.lastName,
+            let authNetPaymentId: string;
+            try {
+                authNetPaymentId = await this.authNetService.createPaymentProfile(
+                    customer.authorizeNetCustomerId,
+                    {
+                        cardNumber: dto.cardNumber,
+                        expirationDate: cleanedExp,
+                        cardCode: dto.cardCode,
+                    },
+                    {
+                        firstName: customer.firstName,
+                        lastName: customer.lastName,
+                    }
+                );
+                console.log('>>> ADD CARD: Payment profile created:', authNetPaymentId);
+            } catch (error: any) {
+                if (error.code === 'E00039') {
+                    console.log('>>> ADD CARD: Payment profile already exists in Authorize.net');
+                    // Check if we already have this card in our MongoDB
+                    const existingCard = await this.paymentProfileModel.findOne({
+                        customerId: (customer._id as any).toString(),
+                        last4: dto.cardNumber.slice(-4),
+                    });
+
+                    if (existingCard) {
+                        console.log('>>> ADD CARD: Card already exists in MongoDB, returning existing data.');
+                        return {
+                            customerId: (customer._id as any).toString(),
+                            authorizeNetCustomerId: customer.authorizeNetCustomerId,
+                            paymentProfileId: (existingCard._id as any).toString(),
+                            authorizeNetPaymentProfileId: existingCard.authorizeNetPaymentProfileId,
+                            last4: existingCard.last4,
+                            cardType: existingCard.cardType,
+                            expirationDate: existingCard.expirationDate,
+                            message: 'Card already exists and is ready for use',
+                        };
+                    } else {
+                        // Card exists in Authorize.net but not in our DB. 
+                        // Note: Authorize.net doesn't return the ID for a duplicate error.
+                        // We would need to fetch all payment profiles and match, but for now, 
+                        // we'll inform the user.
+                        throw new ConflictException('This card is already registered in Authorize.net for this customer. Please use a different card or contact support to sync your profile.');
+                    }
                 }
-            );
-            console.log('>>> ADD CARD: Payment profile created:', authNetPaymentId);
+                throw error;
+            }
 
             const paymentProfile = new this.paymentProfileModel({
                 customerId: customer._id,
@@ -103,22 +150,32 @@ export class CustomersService {
             };
         } catch (error: any) {
             console.error('>>> ADD CARD ERROR:', error.message || error);
-            throw error;
+            // Re-throw NestJS exceptions, wrap others in 500 but keep message
+            if (error.status) throw error;
+            throw new BadRequestException(error.message || 'Error processing card addition');
         }
     }
 
     async create(createCustomerDto: CreateCustomerDto, userId: string): Promise<Customer> {
         const existing = await this.customerModel.findOne({ email: createCustomerDto.email });
         if (existing) {
-            throw new ConflictException('Customer with this email already exists');
+            throw new ConflictException('Customer with this email already exists in our database');
         }
 
         // 1. Create Profile in Authorize.Net
-        const authorizeNetCustomerId = await this.authNetService.createCustomerProfile(
-            createCustomerDto.email,
-            createCustomerDto.firstName,
-            createCustomerDto.lastName,
-        );
+        let authorizeNetCustomerId: string;
+        try {
+            authorizeNetCustomerId = await this.authNetService.createCustomerProfile(
+                createCustomerDto.email,
+                createCustomerDto.firstName,
+                createCustomerDto.lastName,
+            );
+        } catch (error: any) {
+            if (error.code === 'E00039') {
+                throw new ConflictException('This email is already registered in Authorize.net. Please use the sync option or contact support.');
+            }
+            throw new BadRequestException(`Failed to create Authorize.net profile: ${error.message}`);
+        }
 
         // 2. Save in MongoDB
         const customer = new this.customerModel({
@@ -139,18 +196,26 @@ export class CustomersService {
         }
 
         // 1. Create Payment Profile in Authorize.Net
-        const authNetPaymentProfileId = await this.authNetService.createPaymentProfile(
-            customer.authorizeNetCustomerId,
-            {
-                cardNumber: dto.cardNumber,
-                expirationDate: dto.expirationDate,
-                cardCode: dto.cardCode,
-            },
-            {
-                firstName: customer.firstName,
-                lastName: customer.lastName,
+        let authNetPaymentProfileId: string;
+        try {
+            authNetPaymentProfileId = await this.authNetService.createPaymentProfile(
+                customer.authorizeNetCustomerId,
+                {
+                    cardNumber: dto.cardNumber,
+                    expirationDate: dto.expirationDate,
+                    cardCode: dto.cardCode,
+                },
+                {
+                    firstName: customer.firstName,
+                    lastName: customer.lastName,
+                }
+            );
+        } catch (error: any) {
+            if (error.code === 'E00039') {
+                throw new ConflictException('This payment card already exists for this customer in Authorize.net');
             }
-        );
+            throw new BadRequestException(`Failed to create payment profile in Authorize.net: ${error.message}`);
+        }
 
         // 2. Save in MongoDB
         const paymentProfile = new this.paymentProfileModel({

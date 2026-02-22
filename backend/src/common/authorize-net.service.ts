@@ -40,7 +40,9 @@ export class AuthorizeNetService {
                 } else {
                     const error = apiResponse.messages.message[0];
                     this.logger.error(`Authorize.Net Error: ${error.code} - ${error.text}`);
-                    reject(new Error(error.text));
+                    const customError = new Error(error.text) as any;
+                    customError.code = error.code; // Attach code for handling (e.g., E00039 for duplicates)
+                    reject(customError);
                 }
             });
         });
@@ -60,6 +62,22 @@ export class AuthorizeNetService {
         const ctrl = new APIControllers.CreateCustomerProfileController(createRequest.getJSON());
         const response = await this.execute(ctrl);
         return response.customerProfileId;
+    }
+
+    // CIM: Get Customer Profile ID by Email
+    async getCustomerProfileIdByEmail(email: string): Promise<string | null> {
+        try {
+            const getRequest = new APIContracts.GetCustomerProfileRequest();
+            getRequest.setMerchantAuthentication(this.merchantAuthentication);
+            getRequest.setEmail(email);
+
+            const ctrl = new APIControllers.GetCustomerProfileController(getRequest.getJSON());
+            const response = await this.execute(ctrl);
+            return response.profile.customerProfileId;
+        } catch (error) {
+            this.logger.warn(`Could not find customer profile by email ${email}: ${error.message}`);
+            return null;
+        }
     }
 
     // CIM: Create Payment Profile

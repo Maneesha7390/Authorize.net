@@ -35,8 +35,9 @@ export class SubscriptionsService {
         }
 
         // 1. Create ARB Subscription in Authorize.Net using Plan details (override with DTO if provided)
+        let authNetSubscriptionId: string;
         try {
-            const authNetSubscriptionId = await this.authNetService.createSubscription(
+            authNetSubscriptionId = await this.authNetService.createSubscription(
                 customer.authorizeNetCustomerId,
                 paymentProfile.authorizeNetPaymentProfileId,
                 {
@@ -50,26 +51,26 @@ export class SubscriptionsService {
                     trialOccurrences: dto.trialOccurrences !== undefined ? dto.trialOccurrences : plan.trialOccurrences,
                 },
             );
-
-            // 2. Save in MongoDB
-            const subscription = new this.subscriptionModel({
-                ...dto,
-                planName: dto.planName || plan.name,
-                amount: dto.amount || plan.amount,
-                intervalLength: dto.intervalLength || plan.intervalLength,
-                intervalUnit: dto.intervalUnit || plan.intervalUnit,
-                totalOccurrences: dto.totalOccurrences || plan.totalOccurrences,
-                trialAmount: dto.trialAmount !== undefined ? dto.trialAmount : plan.trialAmount,
-                trialOccurrences: dto.trialOccurrences !== undefined ? dto.trialOccurrences : plan.trialOccurrences,
-                paymentProfileId: dto.paymentProfileId, // Added this
-                authorizeNetSubscriptionId: authNetSubscriptionId,
-                status: SubscriptionStatus.ACTIVE,
-            });
-
-            return subscription.save();
-        } catch (error) {
-            throw new NotFoundException(`Failed to create subscription: ${error.message}`);
+        } catch (error: any) {
+            throw new BadRequestException(`Failed to create subscription in Authorize.net: ${error.message}`);
         }
+
+        // 2. Save in MongoDB
+        const subscription = new this.subscriptionModel({
+            ...dto,
+            planName: dto.planName || plan.name,
+            amount: dto.amount || plan.amount,
+            intervalLength: dto.intervalLength || plan.intervalLength,
+            intervalUnit: dto.intervalUnit || plan.intervalUnit,
+            totalOccurrences: dto.totalOccurrences || plan.totalOccurrences,
+            trialAmount: dto.trialAmount !== undefined ? dto.trialAmount : plan.trialAmount,
+            trialOccurrences: dto.trialOccurrences !== undefined ? dto.trialOccurrences : plan.trialOccurrences,
+            paymentProfileId: dto.paymentProfileId, // Added this
+            authorizeNetSubscriptionId: authNetSubscriptionId,
+            status: SubscriptionStatus.ACTIVE,
+        });
+
+        return subscription.save();
     }
 
     async cancel(id: string, user: any): Promise<Subscription> {
@@ -87,7 +88,11 @@ export class SubscriptionsService {
             }
         }
 
-        await this.authNetService.cancelSubscription(subscription.authorizeNetSubscriptionId);
+        try {
+            await this.authNetService.cancelSubscription(subscription.authorizeNetSubscriptionId);
+        } catch (error: any) {
+            throw new BadRequestException(`Failed to cancel subscription in Authorize.net: ${error.message}`);
+        }
 
         subscription.status = SubscriptionStatus.CANCELED;
         return subscription.save();
@@ -100,7 +105,12 @@ export class SubscriptionsService {
         const subscription = await this.subscriptionModel.findById(id);
         if (!subscription) throw new NotFoundException('Subscription not found');
 
-        const status = await this.authNetService.getSubscriptionStatus(subscription.authorizeNetSubscriptionId);
+        let status: string;
+        try {
+            status = await this.authNetService.getSubscriptionStatus(subscription.authorizeNetSubscriptionId);
+        } catch (error: any) {
+            throw new BadRequestException(`Failed to retrieve subscription status from Authorize.net: ${error.message}`);
+        }
 
         // Update local status if needed
         if (status.toLowerCase().includes('cancel')) {
@@ -190,8 +200,8 @@ export class SubscriptionsService {
                     transactionId: savedTx._id,
                     authorizeNetTransactionId: response.transId
                 };
-            } catch (error) {
-                throw new ForbiddenException(`Immediate proration charge failed: ${error.message}`);
+            } catch (error: any) {
+                throw new BadRequestException(`Immediate proration charge failed: ${error.message}`);
             }
         }
 
@@ -230,31 +240,31 @@ export class SubscriptionsService {
                     }
                 );
             }
-
-            // 4. Update local DB
-            subscription.planId = newPlan.id;
-            subscription.planName = newPlan.name;
-            subscription.amount = dto.newAmount || newPlan.amount;
-            subscription.intervalLength = newPlan.intervalLength;
-            subscription.intervalUnit = newPlan.intervalUnit;
-            await subscription.save();
-
-            return {
-                message: intervalChanged
-                    ? 'Subscription upgraded (new cycle created due to interval change)'
-                    : 'Subscription updated successfully',
-                proration: {
-                    daysRemaining,
-                    creditAvailable: parseFloat(credit.toFixed(2)),
-                    newCostForPeriod: parseFloat(newCost.toFixed(2)),
-                    immediateChargeAmount
-                },
-                subscription,
-                immediateCharge
-            };
-        } catch (error) {
-            throw new ForbiddenException(`Failed to synchronize with payment gateway: ${error.message}`);
+        } catch (error: any) {
+            throw new BadRequestException(`Failed to synchronize with payment gateway: ${error.message}`);
         }
+
+        // 4. Update local DB
+        subscription.planId = newPlan.id;
+        subscription.planName = newPlan.name;
+        subscription.amount = dto.newAmount || newPlan.amount;
+        subscription.intervalLength = newPlan.intervalLength;
+        subscription.intervalUnit = newPlan.intervalUnit;
+        await subscription.save();
+
+        return {
+            message: intervalChanged
+                ? 'Subscription upgraded (new cycle created due to interval change)'
+                : 'Subscription updated successfully',
+            proration: {
+                daysRemaining,
+                creditAvailable: parseFloat(credit.toFixed(2)),
+                newCostForPeriod: parseFloat(newCost.toFixed(2)),
+                immediateChargeAmount
+            },
+            subscription,
+            immediateCharge
+        };
     }
 
     async findByUser(userId: string): Promise<Subscription[]> {
@@ -316,7 +326,7 @@ export class SubscriptionsService {
             // 3. Update DB
             subscription.status = SubscriptionStatus.SUSPENDED;
             return subscription.save();
-        } catch (error) {
+        } catch (error: any) {
             throw new BadRequestException(`Failed to pause subscription: ${error.message}`);
         }
     }
@@ -351,7 +361,7 @@ export class SubscriptionsService {
             // 2. Update DB
             subscription.status = SubscriptionStatus.ACTIVE;
             return subscription.save();
-        } catch (error) {
+        } catch (error: any) {
             throw new BadRequestException(`Failed to resume subscription: ${error.message}`);
         }
     }
