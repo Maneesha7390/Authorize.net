@@ -130,6 +130,9 @@ export class CustomersService {
     }
 
     async addPaymentProfile(customerId: string, dto: CreatePaymentProfileDto): Promise<PaymentProfile> {
+        if (!customerId || customerId.length !== 24) {
+            throw new BadRequestException('Invalid customerId format');
+        }
         const customer = await this.customerModel.findById(customerId);
         if (!customer) {
             throw new NotFoundException('Customer not found');
@@ -162,6 +165,9 @@ export class CustomersService {
     }
 
     async findPaymentProfiles(customerId: string): Promise<PaymentProfile[]> {
+        if (!customerId || customerId.length !== 24) {
+            return []; // Return empty if invalid ID format instead of crashing
+        }
         const customer = await this.customerModel.findById(customerId);
         if (!customer) {
             throw new NotFoundException('Customer not found');
@@ -180,5 +186,13 @@ export class CustomersService {
         const customer = await this.customerModel.findById(id).exec();
         if (!customer) throw new NotFoundException('Customer not found');
         return customer;
+    }
+
+    async getCardsByUserId(userId: string): Promise<PaymentProfile[]> {
+        const customer = await this.customerModel.findOne({ userId });
+        if (!customer) {
+            return []; // No customer profile means no saved cards
+        }
+        return this.paymentProfileModel.find({ customerId: (customer._id as any).toString() } as any).exec();
     }
 }

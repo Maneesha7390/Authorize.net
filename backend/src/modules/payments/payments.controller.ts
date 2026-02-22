@@ -2,6 +2,7 @@ import { Controller, Post, Body, Param, Put, UseGuards, Request, Get } from '@ne
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { ChargeProfileDto, OneTimePaymentDto } from './dto/charge-profile.dto';
+import { OneTimeOpaquePaymentDto } from './dto/charge-opaque.dto';
 import { RefundDto } from './dto/refund.dto';
 import { CaptureDto } from './dto/capture.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -27,6 +28,12 @@ export class PaymentsController {
     @ApiOperation({ summary: 'One-time raw card payment — no customer/profile ID needed, just card details + amount' })
     chargeOneTime(@Body() dto: OneTimePaymentDto, @Request() req) {
         return this.paymentsService.chargeOneTime(dto, req.user.userId);
+    }
+
+    @Post('charge/opaque')
+    @ApiOperation({ summary: 'One-time payment using Accept.js Opaque Data (token)' })
+    chargeOpaque(@Body() dto: OneTimeOpaquePaymentDto, @Request() req) {
+        return this.paymentsService.chargeOpaque(dto, req.user.userId);
     }
 
     @Post('charge')

@@ -21,6 +21,11 @@ export class SubscriptionsService {
     ) { }
 
     async create(dto: CreateSubscriptionDto): Promise<Subscription> {
+        if (!dto.customerId || dto.customerId.length !== 24 ||
+            !dto.paymentProfileId || dto.paymentProfileId.length !== 24 ||
+            !dto.planId || dto.planId.length !== 24) {
+            throw new BadRequestException('Invalid ID format. customerId, paymentProfileId, and planId must be 24 characters.');
+        }
         const customer = await this.customerModel.findById(dto.customerId);
         const paymentProfile = await this.paymentProfileModel.findById(dto.paymentProfileId);
         const plan = await this.planModel.findById(dto.planId);

@@ -18,5 +18,6 @@ import { Subscription, SubscriptionSchema } from '../../schemas/subscription.sch
     ],
     controllers: [AdminController],
     providers: [AdminService],
+    exports: [AdminService],
 })
 export class AdminModule { }

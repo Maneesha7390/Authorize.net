@@ -8,6 +8,7 @@ import { PaymentProfile } from '../../schemas/payment-profile.schema';
 import { AuthorizeNetService } from '../../common/authorize-net.service';
 import { ChargeProfileDto, OneTimePaymentDto } from './dto/charge-profile.dto';
 import { RefundDto } from './dto/refund.dto';
+import { OneTimeOpaquePaymentDto } from './dto/charge-opaque.dto';
 @Injectable()
 export class PaymentsService {
     constructor(
@@ -55,9 +56,51 @@ export class PaymentsService {
         }
     }
 
+    // ─── ONE-TIME OPAQUE DATA PAYMENT (ACCEPT.JS) ──────────────────────────────
+    async chargeOpaque(dto: OneTimeOpaquePaymentDto, userId: string): Promise<Transaction> {
+        try {
+            const response = await this.authNetService.chargeOpaqueToken(
+                dto.opaqueData,
+                dto.amount,
+                dto.immediateCapture !== false,
+            );
+
+            const txResponseCode = response.responseCode;
+            const isSuccess = txResponseCode === '1';
+
+            let responseText = 'No message provided';
+            if (response.messages?.message?.length > 0) {
+                responseText = response.messages.message[0].description;
+            }
+
+            const transaction = new this.transactionModel({
+                userId,
+                authorizeNetTransactionId: response.transId,
+                amount: dto.amount,
+                type: dto.immediateCapture === false ? TransactionType.AUTHORIZE : TransactionType.CHARGE,
+                status: isSuccess ? TransactionStatus.SUCCESS : TransactionStatus.FAILED,
+                responseCode: txResponseCode,
+                responseText,
+                rawResponse: JSON.parse(JSON.stringify(response)),
+            });
+
+            return transaction.save();
+        } catch (error) {
+            console.error('Opaque Payment Error:', error);
+            if (error instanceof BadRequestException) throw error;
+            throw new BadRequestException(error.message || 'Opaque payment failed');
+        }
+    }
+
     // ─── CIM STORED-CARD PAYMENT ───────────────────────────────────────────────
     async chargeProfile(dto: ChargeProfileDto, userId: string): Promise<Transaction> {
         try {
+            if (!dto.customerId || dto.customerId.length !== 24) {
+                throw new BadRequestException('Invalid customerId format');
+            }
+            if (!dto.paymentProfileId || dto.paymentProfileId.length !== 24) {
+                throw new BadRequestException('Invalid paymentProfileId format');
+            }
             const customer = await this.customerModel.findById(dto.customerId);
             const paymentProfile = await this.paymentProfileModel.findById(dto.paymentProfileId);
 
@@ -163,6 +206,9 @@ export class PaymentsService {
 
     async refund(dto: RefundDto, user: any): Promise<Refund> {
         try {
+            if (!dto.transactionId || dto.transactionId.length !== 24) {
+                throw new BadRequestException('Invalid transactionId format');
+            }
             const tx = await this.transactionModel.findById(dto.transactionId);
             if (!tx) throw new NotFoundException('Transaction not found');
 
@@ -242,6 +288,9 @@ export class PaymentsService {
 
     async void(transactionId: string, user: any): Promise<Transaction> {
         try {
+            if (!transactionId || transactionId.length !== 24) {
+                throw new BadRequestException('Invalid transactionId format');
+            }
             const tx = await this.transactionModel.findById(transactionId);
             if (!tx) throw new NotFoundException('Transaction not found');
 

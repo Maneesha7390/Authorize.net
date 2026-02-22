@@ -31,15 +31,8 @@ export class AdminService {
                     .select('_id authorizeNetCustomerId email firstName lastName')
                     .exec();
 
-                // Count all transactions for this user (one-time + CIM)
-                const customerIds: any[] = customer ? [(customer as any)._id] : [];
-
-                const transactionCount = await this.transactionModel.countDocuments({
-                    $or: [
-                        { userId },
-                        { customerId: { $in: customerIds } },
-                    ],
-                } as any);
+                const transactions = await this.getUserTransactions(userId);
+                const subscriptions = await this.getUserSubscriptions(userId);
 
                 return {
                     user: {
@@ -56,7 +49,9 @@ export class AdminService {
                             lastName: customer.lastName,
                         }
                         : null,
-                    transactionCount,
+                    transactionCount: transactions.length,
+                    transactions,
+                    subscriptions
                 };
             }),
         );
@@ -95,5 +90,40 @@ export class AdminService {
         return this.subscriptionModel.find({
             customerId: { $in: customerIds }
         } as any).sort({ createdAt: -1 }).exec();
+    }
+
+    /**
+     * Get comprehensive details for a specific user (Info, Customer, TXs, Subscriptions).
+     */
+    async getUserDetails(userId: string) {
+        if (!userId || userId.length !== 24) {
+            throw new NotFoundException('User not found (Invalid ID format)');
+        }
+
+        const user = await this.userModel.findById(userId).select('-password').exec();
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        const customer = await this.customerModel.findOne({ userId: user._id } as any).exec();
+        const transactions = await this.getUserTransactions(userId);
+        const subscriptions = await this.getUserSubscriptions(userId);
+
+        return {
+            user: {
+                _id: user._id,
+                email: user.email,
+                role: (user as any).role,
+            },
+            customer: customer ? {
+                _id: (customer as any)._id,
+                authorizeNetCustomerId: customer.authorizeNetCustomerId,
+                email: customer.email,
+                firstName: customer.firstName,
+                lastName: customer.lastName,
+            } : null,
+            transactions,
+            subscriptions
+        };
     }
 }

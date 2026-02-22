@@ -6,6 +6,7 @@ import { Customer, CustomerSchema } from '../../schemas/customer.schema';
 import { PaymentProfile, PaymentProfileSchema } from '../../schemas/payment-profile.schema';
 import { User, UserSchema } from '../../schemas/user.schema';
 import { AuthorizeNetService } from '../../common/authorize-net.service';
+import { AdminModule } from '../admin/admin.module';
 
 @Module({
     imports: [
@@ -14,6 +15,7 @@ import { AuthorizeNetService } from '../../common/authorize-net.service';
             { name: PaymentProfile.name, schema: PaymentProfileSchema },
             { name: User.name, schema: UserSchema },
         ]),
+        AdminModule,
     ],
     controllers: [CustomersController],
     providers: [CustomersService, AuthorizeNetService],
