@@ -5,6 +5,7 @@ import { Transaction, TransactionStatus, TransactionType } from '../../schemas/t
 import { Refund } from '../../schemas/refund.schema';
 import { Customer } from '../../schemas/customer.schema';
 import { PaymentProfile } from '../../schemas/payment-profile.schema';
+import { Subscription } from '../../schemas/subscription.schema';
 import { AuthorizeNetService } from '../../common/authorize-net.service';
 import { ChargeProfileDto, OneTimePaymentDto } from './dto/charge-profile.dto';
 import { RefundDto } from './dto/refund.dto';
@@ -16,6 +17,7 @@ export class PaymentsService {
         @InjectModel(Refund.name) private refundModel: Model<Refund>,
         @InjectModel(Customer.name) private customerModel: Model<Customer>,
         @InjectModel(PaymentProfile.name) private paymentProfileModel: Model<PaymentProfile>,
+        @InjectModel(Subscription.name) private subscriptionModel: Model<Subscription>,
         private authNetService: AuthorizeNetService,
     ) { }
 
@@ -212,6 +214,14 @@ export class PaymentsService {
             const tx = await this.transactionModel.findById(dto.transactionId);
             if (!tx) throw new NotFoundException('Transaction not found');
 
+            // 1. Status Guards
+            if (tx.status === TransactionStatus.VOIDED) {
+                throw new BadRequestException('Cannot refund a voided transaction');
+            }
+            if (tx.status === TransactionStatus.REFUNDED) {
+                throw new BadRequestException('This transaction has already been refunded');
+            }
+
             // Ownership check
             if (user.role !== 'admin') {
                 const directOwner = tx.userId && tx.userId.toString() === user.userId?.toString();
@@ -228,7 +238,21 @@ export class PaymentsService {
                 expirationDate: dto.expirationDate?.replace('/', ''),
             };
 
-            // Attempt to get card info from payment profile if customerId and payment ID were used (CIM flow)
+            // 2. Subscription-Specific Logic: Use the card linked to the subscription
+            if ((!cardInfo.last4 || !cardInfo.expirationDate) && tx.subscriptionId) {
+                const subscription = await this.subscriptionModel.findById(tx.subscriptionId);
+                if (subscription && subscription.paymentProfileId) {
+                    const profile = await this.paymentProfileModel.findById(subscription.paymentProfileId);
+                    if (profile) {
+                        cardInfo.cardType = cardInfo.cardType || profile.cardType;
+                        cardInfo.last4 = cardInfo.last4 || profile.last4;
+                        cardInfo.expirationDate = cardInfo.expirationDate || profile.expirationDate;
+                        console.log(`Found card info from subscription profile: ${profile.last4}`);
+                    }
+                }
+            }
+
+            // 3. Fallback: Search in Customer's default payment profile
             if (!cardInfo.last4 || !cardInfo.expirationDate) {
                 const paymentProfile = await this.paymentProfileModel.findOne({ customerId: tx.customerId, isDefault: true });
                 if (paymentProfile) {
@@ -238,19 +262,25 @@ export class PaymentsService {
                 }
             }
 
-            // Fallback: Extract last4 and cardType from rawResponse of the original transaction
-            if (!cardInfo.last4 && tx.rawResponse?.accountNumber) {
-                cardInfo.last4 = tx.rawResponse.accountNumber.replace(/X/g, '');
-            }
-            if (!cardInfo.cardType && tx.rawResponse?.accountType) {
-                cardInfo.cardType = tx.rawResponse.accountType;
+            // 4. Robust Fallback: Extract from rawResponse (handles Webhook payloads too)
+            const raw = tx.rawResponse;
+            // Check top level or inside 'payload' (for webhooks)
+            const source = raw?.accountNumber ? raw : (raw?.payload ? raw.payload : null);
+
+            if (source) {
+                if (!cardInfo.last4 && source.accountNumber) {
+                    cardInfo.last4 = source.accountNumber.replace(/X/g, '');
+                }
+                if (!cardInfo.cardType && source.accountType) {
+                    cardInfo.cardType = source.accountType;
+                }
             }
 
             // Validation: Authorize.net NEEDS these for a refund
             if (!cardInfo.last4 || !cardInfo.expirationDate) {
                 throw new BadRequestException(
                     'To refund this transaction, you must provide the expirationDate (MMYY). ' +
-                    'The last4 digits were ' + (cardInfo.last4 ? 'found' : 'not found') + '.'
+                    'The last4 digits were ' + (cardInfo.last4 ? `found (${cardInfo.last4})` : 'not found') + '.'
                 );
             }
 

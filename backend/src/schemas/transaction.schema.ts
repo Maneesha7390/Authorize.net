@@ -7,6 +7,7 @@ export enum TransactionStatus {
     FAILED = 'FAILED',
     VOIDED = 'VOIDED',
     REFUNDED = 'REFUNDED',
+    SETTLED = 'SETTLED',
 }
 
 export enum TransactionType {

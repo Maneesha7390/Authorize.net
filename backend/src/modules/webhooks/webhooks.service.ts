@@ -41,6 +41,9 @@ export class WebhooksService {
                 case 'net.authorize.payment.capture.created':
                     await this.handlePaymentCreated(payload);
                     break;
+                case 'net.authorize.payment.settlement.successfully':
+                    await this.handleSettlementSuccessfully(payload);
+                    break;
                 case 'net.authorize.customer.subscription.cancelled':
                     await this.handleSubscriptionCancelled(payload);
                     break;
@@ -104,6 +107,23 @@ export class WebhooksService {
         if (sub) {
             sub.status = SubscriptionStatus.SUSPENDED;
             await sub.save();
+        }
+    }
+
+    private async handleSettlementSuccessfully(payload: any) {
+        // Authorize.Net settlement payload contains an array of transaction IDs
+        // or a single transaction ID depending on the specific event structure.
+        const transIds = payload.payload.transactionIds || [payload.payload.id];
+
+        if (transIds && Array.isArray(transIds)) {
+            for (const transId of transIds) {
+                const tx = await this.transactionModel.findOne({ authorizeNetTransactionId: transId });
+                if (tx) {
+                    tx.status = TransactionStatus.SETTLED;
+                    await tx.save();
+                    this.logger.log(`Transaction ${transId} marked as SETTLED via webhook`);
+                }
+            }
         }
     }
 }
