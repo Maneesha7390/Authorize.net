@@ -11,16 +11,12 @@ Currently, two official plugins are available:
 
 The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-
-
-
 ### Installation
 
 1. Clone the repository
 2. Install dependencies:
 
-
-```bash
+````bash
 npm install
 
 ## Compile and run the project
@@ -86,7 +82,7 @@ Payment processing follows a tokenized flow:
 
 ---
 
-#  Data Flow
+# Data Flow
 
 User Browser  
  ↓ (Card Details – HTTPS)  
@@ -100,7 +96,7 @@ Payment Response
 
 ---
 
-#  Security Design Principles
+# Security Design Principles
 
 ## 1. No Card Data Storage
 
@@ -128,8 +124,7 @@ Payment Response
 
 ---
 
-#  Required Environment Variables
+# Required Environment Variables
 
-AUTHORIZE_CLIENT_KEY
-AUTHORIZE_API_LOGIN_ID
-
+VITE_AUTHORIZE_CLIENT_KEY
+VITE_AUTHORIZE_API_LOGIN_ID
