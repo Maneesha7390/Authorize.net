@@ -60,5 +60,5 @@ AUTHORIZE_NET_API_LOGIN_ID=your_api_login_id
 AUTHORIZE_NET_TRANSACTION_KEY=your_transaction_key
 AUTHORIZE_NET_ENVIRONMENT=sandbox
 
-sandbox registration is done
+sandbox registration is done.
 
