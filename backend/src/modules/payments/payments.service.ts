@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Transaction, TransactionStatus, TransactionType } from '../../schemas/transaction.schema';
@@ -19,6 +20,7 @@ export class PaymentsService {
         @InjectModel(PaymentProfile.name) private paymentProfileModel: Model<PaymentProfile>,
         @InjectModel(Subscription.name) private subscriptionModel: Model<Subscription>,
         private authNetService: AuthorizeNetService,
+        private configService: ConfigService,
     ) { }
 
     // ─── ONE-TIME RAW CARD PAYMENT ─────────────────────────────────────────────
@@ -375,5 +377,40 @@ export class PaymentsService {
                 { customerId: { $in: customerIds } },
             ],
         } as any).sort({ createdAt: -1 }).exec();
+    }
+
+    async createHostedPayment(
+        amount: number,
+        userId: string,
+        immediateCapture: boolean = true,
+        returnUrl?: string,
+        cancelUrl?: string,
+    ): Promise<{ token: string }> {
+        try {
+            let finalReturnUrl =
+                this.configService.get<string>('PAYMENT_SUCCESS_URL') || returnUrl || 'https://example.com/payment-success';
+            let finalCancelUrl =
+                this.configService.get<string>('PAYMENT_CANCEL_URL') || cancelUrl || 'https://example.com/payment-cancel';
+
+            // Ensure they are not empty strings and start with http/https
+            if (!finalReturnUrl || !finalReturnUrl.startsWith('http')) finalReturnUrl = 'https://example.com/payment-success';
+            if (!finalCancelUrl || !finalCancelUrl.startsWith('http')) finalCancelUrl = 'https://example.com/payment-cancel';
+
+            const transactionType = immediateCapture ? 'authCaptureTransaction' : 'authOnlyTransaction';
+
+            console.log(`Generating hosted payment token: Amount=${amount}, Type=${transactionType}, Return=${finalReturnUrl}`);
+
+            const token = await this.authNetService.createHostedPaymentPage(
+                amount,
+                finalReturnUrl,
+                finalCancelUrl,
+                transactionType,
+            );
+            return { token };
+        } catch (error) {
+            throw new BadRequestException(
+                `Failed to create hosted payment: ${error.message}`,
+            );
+        }
     }
 }

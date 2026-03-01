@@ -5,6 +5,7 @@ import { ChargeProfileDto, OneTimePaymentDto } from './dto/charge-profile.dto';
 import { OneTimeOpaquePaymentDto } from './dto/charge-opaque.dto';
 import { RefundDto } from './dto/refund.dto';
 import { CaptureDto } from './dto/capture.dto';
+import { CreateHostedPaymentDto } from './dto/hosted-payment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -62,5 +63,17 @@ export class PaymentsController {
     @ApiOperation({ summary: 'Void a transaction' })
     void(@Param('id') id: string, @Request() req) {
         return this.paymentsService.void(id, req.user);
+    }
+
+    @Post('hosted-payment')
+    @ApiOperation({ summary: 'Create hosted payment page token' })
+    createHostedPayment(@Body() dto: CreateHostedPaymentDto, @Request() req) {
+        return this.paymentsService.createHostedPayment(
+            dto.amount,
+            req.user.userId,
+            dto.immediateCapture !== false, // default true
+            dto.returnUrl,
+            dto.cancelUrl,
+        );
     }
 }

@@ -434,6 +434,69 @@ export class AuthorizeNetService {
         const ctrl = new APIControllers.ARBUpdateSubscriptionController(updateRequest.getJSON());
         return this.execute(ctrl);
     }
+
+    async createHostedPaymentPage(
+        amount: number,
+        returnUrl: string,
+        cancelUrl: string,
+        transactionType: string = 'authCaptureTransaction',
+    ): Promise<string> {
+        const transactionRequest = new APIContracts.TransactionRequestType();
+        // Set transaction type based on user selection
+        transactionRequest.setTransactionType(
+            transactionType === 'authOnlyTransaction'
+                ? APIContracts.TransactionTypeEnum.AUTHONLYTRANSACTION
+                : APIContracts.TransactionTypeEnum.AUTHCAPTURETRANSACTION,
+        );
+        transactionRequest.setAmount(amount);
+
+        const setting1 = new APIContracts.SettingType();
+        setting1.setSettingName('hostedPaymentReturnOptions');
+        setting1.setSettingValue(
+            JSON.stringify({
+                showReceipt: false,
+                url: returnUrl,
+                urlText: 'Continue',
+                cancelUrl: cancelUrl,
+                cancelUrlText: 'Cancel',
+            }),
+        );
+
+        const setting2 = new APIContracts.SettingType();
+        setting2.setSettingName('hostedPaymentButtonOptions');
+        setting2.setSettingValue(`{"text": "Pay"}`);
+
+        const setting3 = new APIContracts.SettingType();
+        setting3.setSettingName('hostedPaymentPaymentOptions');
+        setting3.setSettingValue(
+            JSON.stringify({
+                cardCodeRequired: true,
+                showCreditCard: true,
+                showBankAccount: false,
+            }),
+        );
+
+        const settingList = [setting1, setting2, setting3];
+
+        const alist = new APIContracts.ArrayOfSetting();
+        alist.setSetting(settingList);
+
+        const getRequest = new APIContracts.GetHostedPaymentPageRequest();
+        getRequest.setMerchantAuthentication(this.merchantAuthentication);
+        getRequest.setTransactionRequest(transactionRequest);
+        getRequest.setHostedPaymentSettings(alist);
+
+        const ctrl = new APIControllers.GetHostedPaymentPageController(
+            getRequest.getJSON(),
+        );
+
+        this.logger.log(
+            'Hosted Payment Request: ' + JSON.stringify(getRequest.getJSON()),
+        );
+
+        const response = await this.execute(ctrl);
+        return response.token;
+    }
 }
 
 
