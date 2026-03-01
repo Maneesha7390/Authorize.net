@@ -38,7 +38,9 @@ export class WebhooksService {
         try {
             switch (eventType) {
                 case 'net.authorize.payment.authcapture.created':
+                case 'net.authorize.payment.authorization.created':
                 case 'net.authorize.payment.capture.created':
+                case 'net.authorize.payment.priorAuthCapture.created':
                     await this.handlePaymentCreated(payload);
                     break;
                 case 'net.authorize.payment.settlement.successfully':
@@ -64,10 +66,13 @@ export class WebhooksService {
     }
 
     private async handlePaymentCreated(payload: any) {
+        const eventType = payload.eventType;
         const transId = payload.payload.id;
-        const amount = payload.payload.authAmount;
+        const amount = payload.payload.authAmount || payload.payload.amount; // Use authAmount or amount
         const refId = payload.payload.refId;
         const subscriptionId = payload.payload.subscriptionId;
+
+        this.logger.log(`Received ${eventType} for TransId: ${transId}, RefId: ${refId}`);
 
         // 1. Try to find the transaction by refId (best for Hosted Payments)
         let tx = null;
@@ -80,28 +85,38 @@ export class WebhooksService {
             tx = await this.transactionModel.findOne({ authorizeNetTransactionId: transId });
         }
 
+        // Determine transaction type based on event
+        let type = TransactionType.CHARGE;
+        if (eventType.includes('authorization')) {
+            type = TransactionType.AUTHORIZE;
+        } else if (eventType.includes('priorAuthCapture') || eventType.includes('capture.created')) {
+            type = TransactionType.CAPTURE;
+        }
+
         if (!tx) {
             // Find the subscription to link it back to the customer
-            const sub = await this.subscriptionModel.findOne({ authorizeNetSubscriptionId: subscriptionId });
+            const sub = subscriptionId ? await this.subscriptionModel.findOne({ authorizeNetSubscriptionId: subscriptionId }) : null;
 
             tx = new this.transactionModel({
                 authorizeNetTransactionId: transId,
                 amount: amount,
-                type: TransactionType.CHARGE,
+                type: type,
                 status: TransactionStatus.SUCCESS,
                 customerId: sub ? sub.customerId : null,
                 subscriptionId: sub ? sub._id : null,
                 rawResponse: payload
             });
+            this.logger.log(`Created new transaction record for ${transId} (Type: ${type})`);
         } else {
             // Update the existing PENDING transaction
             tx.authorizeNetTransactionId = transId;
             tx.status = TransactionStatus.SUCCESS;
+            tx.type = type; // Update type as well just in case
             tx.rawResponse = payload;
+            this.logger.log(`Updated existing transaction ${tx._id} (AuthId: ${transId}, Status: SUCCESS)`);
         }
 
         await tx.save();
-        this.logger.log(`Processed payment for transaction ${transId} (Ref: ${refId}, Sub: ${subscriptionId})`);
     }
 
     private async handleSubscriptionCancelled(payload: any) {
