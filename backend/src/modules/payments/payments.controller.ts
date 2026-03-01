@@ -76,4 +76,10 @@ export class PaymentsController {
             dto.cancelUrl,
         );
     }
+
+    @Get('card/details')
+    @ApiOperation({ summary: 'Get saved card details (Brand, Last 4, Expiration) from CIM profile' })
+    async getCardDetails(@Request() req) {
+        return this.paymentsService.getCustomerCards(req.user.userId);
+    }
 }

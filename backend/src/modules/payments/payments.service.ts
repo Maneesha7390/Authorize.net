@@ -425,4 +425,13 @@ export class PaymentsService {
             );
         }
     }
+
+    async getCustomerCards(userId: string) {
+        const customer = await this.customerModel.findOne({ userId });
+        if (!customer || !customer.authorizeNetCustomerId) {
+            throw new NotFoundException('Customer profile not found for this user');
+        }
+
+        return this.authNetService.getCustomerPaymentProfiles(customer.authorizeNetCustomerId);
+    }
 }

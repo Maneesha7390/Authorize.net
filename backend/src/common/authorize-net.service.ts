@@ -501,6 +501,35 @@ export class AuthorizeNetService {
         const response = await this.execute(ctrl);
         return response.token;
     }
+
+    async getCustomerPaymentProfiles(customerProfileId: string): Promise<Array<{
+        paymentProfileId: string;
+        cardType: string;
+        last4: string;
+        expirationDate: string;
+    }>> {
+        try {
+            const getRequest = new APIContracts.GetCustomerProfileRequest();
+            getRequest.setMerchantAuthentication(this.merchantAuthentication);
+            getRequest.setCustomerProfileId(customerProfileId);
+            getRequest.setUnmaskExpirationDate(true); // This reveals the expiration date
+
+            const ctrl = new APIControllers.GetCustomerProfileController(getRequest.getJSON());
+            const response = await this.execute(ctrl);
+
+            const paymentProfiles = response.profile.paymentProfiles || [];
+
+            return paymentProfiles.map((profile: any) => ({
+                paymentProfileId: profile.customerPaymentProfileId,
+                cardType: profile.payment.creditCard.cardType,
+                last4: profile.payment.creditCard.cardNumber.slice(-4), // Last 4 digits
+                expirationDate: profile.payment.creditCard.expirationDate, // Format: YYYY-MM
+            }));
+        } catch (error) {
+            this.logger.error(`Could not retrieve payment profiles for customer ${customerProfileId}: ${error.message}`);
+            throw error;
+        }
+    }
 }
 
 
