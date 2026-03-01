@@ -55,9 +55,7 @@ export const UserDashboard = () => {
           </div>
 
           <div className="p-6">
-            {activeTab === "charge" && (
-              <ChargeForm onSuccess={() => alert("Charged successfully")} />
-            )}
+            {activeTab === "charge" && <ChargeForm />}
             {activeTab === "subscription" && (
               <SubscriptionForm
                 onSuccess={() => alert("Subscription created")}

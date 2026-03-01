@@ -1,11 +1,8 @@
 import React, { useState } from "react";
 import { apiService } from "../services/api";
 
-export const ChargeForm: React.FC = () => {
+export const HostedPaymentForm: React.FC = () => {
   const [amount, setAmount] = useState("");
-  const [transactionType, setTransactionType] = useState(
-    "authCaptureTransaction"
-  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -17,20 +14,14 @@ export const ChargeForm: React.FC = () => {
     try {
       const { token } = await apiService.createHostedPayment({
         amount: parseFloat(amount),
-        immediateCapture: transactionType === "authCaptureTransaction",
-        returnUrl:
-          import.meta.env.VITE_PAYMENT_SUCCESS_URL ||
-          `${window.location.origin}/payment-success`,
-        cancelUrl:
-          import.meta.env.VITE_PAYMENT_CANCEL_URL ||
-          `${window.location.origin}/payment-cancel`,
+        returnUrl: `${window.location.origin}/payment-success`,
+        cancelUrl: `${window.location.origin}/payment-cancel`,
       });
 
+      // Redirect to Authorize.net hosted payment page
       const form = document.createElement("form");
       form.method = "POST";
-      form.action =
-        import.meta.env.VITE_AUTHORIZE_PAYMENT_URL ||
-        "https://test.authorize.net/payment/payment";
+      form.action = "https://test.authorize.net/payment/payment";
       form.innerHTML = `<input type="hidden" name="token" value="${token}" />`;
       document.body.appendChild(form);
       form.submit();
@@ -60,29 +51,6 @@ export const ChargeForm: React.FC = () => {
         className="w-full p-2 border rounded"
         required
       />
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Transaction Type
-        </label>
-        <select
-          value={transactionType}
-          onChange={(e) => setTransactionType(e.target.value)}
-          className="w-full p-2 border rounded"
-        >
-          <option value="authCaptureTransaction">
-            Charge (Immediate Capture)
-          </option>
-          <option value="authOnlyTransaction">
-            Authorize Only (Capture Later)
-          </option>
-        </select>
-        <p className="text-xs text-gray-500 mt-1">
-          {transactionType === "authCaptureTransaction"
-            ? "Payment will be charged immediately"
-            : "Payment will be authorized but not charged until captured"}
-        </p>
-      </div>
 
       {error && <p className="text-red-500 text-sm">{error}</p>}
 

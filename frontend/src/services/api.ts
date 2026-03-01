@@ -12,7 +12,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -216,4 +215,11 @@ export const apiService = {
 
   cancelSubscription: (subscriptionId: string) =>
     api.put(`/subscriptions/${subscriptionId}/cancel`).then((res) => res.data),
+
+  createHostedPayment: (data: {
+    amount: number;
+    immediateCapture: boolean;
+    returnUrl: string;
+    cancelUrl: string;
+  }) => api.post("/payments/hosted-payment", data).then((res) => res.data),
 };

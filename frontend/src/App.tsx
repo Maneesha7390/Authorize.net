@@ -5,6 +5,8 @@ import { UserDashboard } from "./pages/UserDashboard";
 import { AdminDashboard } from "./pages/AdminDashboard";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import "./App.css";
+import { PaymentSuccess } from "./pages/PaymentSuccess";
+import { PaymentCancel } from "./pages/PaymentCancel";
 
 function App() {
   return (
@@ -13,6 +15,8 @@ function App() {
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/payment-success" element={<PaymentSuccess />} />
+        <Route path="/payment-cancel" element={<PaymentCancel />} />
         <Route
           path="/admin/dashboard"
           element={
