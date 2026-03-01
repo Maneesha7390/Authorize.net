@@ -387,6 +387,17 @@ export class PaymentsService {
         cancelUrl?: string,
     ): Promise<{ token: string }> {
         try {
+            // 1. Create a PENDING transaction record so it shows up in Admin view immediately
+            const pendingTx = new this.transactionModel({
+                userId,
+                amount,
+                type: immediateCapture ? TransactionType.CHARGE : TransactionType.AUTHORIZE,
+                status: TransactionStatus.PENDING,
+                responseText: 'Hosted Payment Attempt',
+                authorizeNetTransactionId: 'PENDING_HOSTED_' + Date.now(),
+            });
+            await pendingTx.save();
+
             let finalReturnUrl =
                 this.configService.get<string>('PAYMENT_SUCCESS_URL') || returnUrl || 'https://example.com/payment-success';
             let finalCancelUrl =
@@ -405,6 +416,7 @@ export class PaymentsService {
                 finalReturnUrl,
                 finalCancelUrl,
                 transactionType,
+                pendingTx._id.toString(), // Pass the transaction MongoDB ID as refId
             );
             return { token };
         } catch (error) {

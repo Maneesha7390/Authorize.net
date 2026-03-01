@@ -66,10 +66,19 @@ export class WebhooksService {
     private async handlePaymentCreated(payload: any) {
         const transId = payload.payload.id;
         const amount = payload.payload.authAmount;
-        const subscriptionId = payload.payload.subscriptionId; // Authorize.Net provides this in ARB webhooks
+        const refId = payload.payload.refId;
+        const subscriptionId = payload.payload.subscriptionId;
 
-        // Try to find an existing transaction (e.g., created during manual upgrade)
-        let tx = await this.transactionModel.findOne({ authorizeNetTransactionId: transId });
+        // 1. Try to find the transaction by refId (best for Hosted Payments)
+        let tx = null;
+        if (refId && refId.length === 24) {
+            tx = await this.transactionModel.findById(refId);
+        }
+
+        // 2. Otherwise try by authorizeNetTransactionId
+        if (!tx) {
+            tx = await this.transactionModel.findOne({ authorizeNetTransactionId: transId });
+        }
 
         if (!tx) {
             // Find the subscription to link it back to the customer
@@ -85,11 +94,14 @@ export class WebhooksService {
                 rawResponse: payload
             });
         } else {
+            // Update the existing PENDING transaction
+            tx.authorizeNetTransactionId = transId;
             tx.status = TransactionStatus.SUCCESS;
+            tx.rawResponse = payload;
         }
 
         await tx.save();
-        this.logger.log(`Processed payment for transaction ${transId} (Subscription: ${subscriptionId})`);
+        this.logger.log(`Processed payment for transaction ${transId} (Ref: ${refId}, Sub: ${subscriptionId})`);
     }
 
     private async handleSubscriptionCancelled(payload: any) {

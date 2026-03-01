@@ -440,6 +440,7 @@ export class AuthorizeNetService {
         returnUrl: string,
         cancelUrl: string,
         transactionType: string = 'authCaptureTransaction',
+        refId?: string,
     ): Promise<string> {
         const transactionRequest = new APIContracts.TransactionRequestType();
         // Set transaction type based on user selection
@@ -483,6 +484,9 @@ export class AuthorizeNetService {
 
         const getRequest = new APIContracts.GetHostedPaymentPageRequest();
         getRequest.setMerchantAuthentication(this.merchantAuthentication);
+        if (refId) {
+            getRequest.setRefId(refId);
+        }
         getRequest.setTransactionRequest(transactionRequest);
         getRequest.setHostedPaymentSettings(alist);
 
