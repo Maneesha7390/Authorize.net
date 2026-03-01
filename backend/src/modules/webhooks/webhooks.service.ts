@@ -19,6 +19,9 @@ export class WebhooksService {
         const eventId = payload.notificationId;
         const eventType = payload.eventType;
 
+        this.logger.log(`Received Authorize.Net Webhook: ${eventType} (ID: ${eventId})`);
+        this.logger.log(`Full Webhook Payload: ${JSON.stringify(payload)}`);
+
         // 1. Idempotency Check
         const existing = await this.eventModel.findOne({ eventId });
         if (existing) {
@@ -69,7 +72,7 @@ export class WebhooksService {
         const eventType = payload.eventType;
         const transId = payload.payload.id;
         const amount = payload.payload.authAmount || payload.payload.amount; // Use authAmount or amount
-        const refId = payload.payload.refId;
+        const refId = payload.payload.refId || payload.payload.merchantReferenceId;
         const subscriptionId = payload.payload.subscriptionId;
 
         this.logger.log(`Received ${eventType} for TransId: ${transId}, RefId: ${refId}`);
@@ -94,10 +97,12 @@ export class WebhooksService {
         }
 
         if (!tx) {
+            this.logger.warn(`Transaction not found for RefId: ${refId} or TransId: ${transId}. Full Payload: ${JSON.stringify(payload.payload)}`);
             // Find the subscription to link it back to the customer
             const sub = subscriptionId ? await this.subscriptionModel.findOne({ authorizeNetSubscriptionId: subscriptionId }) : null;
 
             tx = new this.transactionModel({
+                userId: null, // We don't have the userId here if tx wasn't found by refId
                 authorizeNetTransactionId: transId,
                 amount: amount,
                 type: type,
@@ -106,7 +111,7 @@ export class WebhooksService {
                 subscriptionId: sub ? sub._id : null,
                 rawResponse: payload
             });
-            this.logger.log(`Created new transaction record for ${transId} (Type: ${type})`);
+            this.logger.log(`Created new transaction record for ${transId} (Type: ${type}, SubId: ${subscriptionId})`);
         } else {
             // Update the existing PENDING transaction
             tx.authorizeNetTransactionId = transId;

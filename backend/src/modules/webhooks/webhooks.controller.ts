@@ -13,6 +13,7 @@ export class WebhooksController {
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Authorize.Net Webhook Listener' })
     async handleWebhook(@Body() payload: any) {
+        console.log('Webhook Controller Hit!');
         // Process asynchronously to avoid timeout from Authorize.Net
         this.webhooksService.handleEvent(payload);
         return { status: 'received' };

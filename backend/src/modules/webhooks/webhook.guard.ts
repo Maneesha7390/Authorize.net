@@ -9,6 +9,7 @@ export class WebhookGuard implements CanActivate {
     canActivate(context: ExecutionContext): boolean {
         const request = context.switchToHttp().getRequest();
         const signature = request.headers['x-anet-signature'];
+        console.log(`Webhook triggered. Signature present: ${!!signature}`);
         const body = JSON.stringify(request.body);
         const key = this.configService.get<string>('WEBHOOK_SIGNATURE_KEY');
 
