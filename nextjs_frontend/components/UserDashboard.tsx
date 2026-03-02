@@ -1,11 +1,12 @@
+"use client";
+
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { ChargeForm } from "../components/ChargeForm";
-import { SubscriptionForm } from "../components/SubscriptionForm";
+import { useRouter } from "next/navigation";
+import { ChargeForm } from "./ChargeForm";
+import { SubscriptionForm } from "./SubscriptionForm";
 
 export const UserDashboard = () => {
-  const navigate = useNavigate();
-  const [user, _setUser] = useState<any>(null);
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"charge" | "subscription">(
     "charge"
   );
@@ -14,7 +15,7 @@ export const UserDashboard = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("role");
-    navigate("/login");
+    router.push("/login");
   };
 
   return (
@@ -23,9 +24,6 @@ export const UserDashboard = () => {
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-gray-800">User Dashboard</h1>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">
-              {user?.email || "User"}
-            </span>
             <button
               onClick={handleLogout}
               className="text-sm text-red-600 hover:text-red-700 font-medium"
@@ -55,7 +53,9 @@ export const UserDashboard = () => {
           </div>
 
           <div className="p-6">
-            {activeTab === "charge" && <ChargeForm />}
+            {activeTab === "charge" && (
+              <ChargeForm onSuccess={() => alert("Charged successfully")} />
+            )}
             {activeTab === "subscription" && (
               <SubscriptionForm
                 onSuccess={() => alert("Subscription created")}

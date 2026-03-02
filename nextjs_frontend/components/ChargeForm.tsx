@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from "react";
 import { apiService } from "../services/api";
 
@@ -19,17 +21,17 @@ export const ChargeForm: React.FC = () => {
         amount: parseFloat(amount),
         immediateCapture: transactionType === "authCaptureTransaction",
         returnUrl:
-          import.meta.env.VITE_PAYMENT_SUCCESS_URL ||
+          process.env.NEXT_PUBLIC_PAYMENT_SUCCESS_URL ||
           `${window.location.origin}/payment-success`,
         cancelUrl:
-          import.meta.env.VITE_PAYMENT_CANCEL_URL ||
+          process.env.NEXT_PUBLIC_PAYMENT_CANCEL_URL ||
           `${window.location.origin}/payment-cancel`,
       });
 
       const form = document.createElement("form");
       form.method = "POST";
       form.action =
-        import.meta.env.VITE_AUTHORIZE_PAYMENT_URL ||
+        process.env.NEXT_PUBLIC_AUTHORIZE_PAYMENT_URL ||
         "https://test.authorize.net/payment/payment";
       form.innerHTML = `<input type="hidden" name="token" value="${token}" />`;
       document.body.appendChild(form);
